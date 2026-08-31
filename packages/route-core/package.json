@@ -1,0 +1,12 @@
+{
+  "name": "@lechigo/route-core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "node --check src/index.ts"
+  }
+}

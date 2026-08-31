@@ -1,0 +1,9 @@
+{
+  "name": "@lechigo/guest-webxr",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "node --check src/entry/index.ts"
+  }
+}
