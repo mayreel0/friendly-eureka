@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "test": "node --test \"packages/**/*.test.ts\" \"apps/**/*.test.ts\"",
-    "typecheck": "node --check packages/route-core/src/index.ts && node --check apps/api/src/server.ts && node --check apps/guest-webxr/src/entry/index.ts",
+    "typecheck": "node --check packages/route-core/src/index.ts && node --check packages/ui/src/index.ts && node --check packages/config/src/index.ts && node --check apps/api/src/server.ts && node --check apps/guest-webxr/src/entry/index.ts && node --check apps/merchant-admin/src/index.ts",
     "lint": "npm run typecheck",
     "format": "node scripts/check-format.mjs"
   },
