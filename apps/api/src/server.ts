@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import {
   canActivateRoute,
@@ -10,6 +10,7 @@ import {
   type EntrySource,
   type Route,
   type Segment,
+  type SerializedRoute,
   type WifiProof,
 } from '../../../packages/route-core/src/index.ts';
 
@@ -24,6 +25,7 @@ export type StoreRecord = {
   merchantId: string;
   name: string;
   restroomPassword: string;
+  passwordGeneration?: number;
 };
 
 export type RouteDraftInput = {
@@ -36,9 +38,14 @@ export type RouteDraftInput = {
 
 export type ApiContext = {
   signingSecret: string;
+  now: () => string;
   stores: Map<string, StoreRecord>;
   routes: Map<string, Route>;
+  qrCredentials: Map<string, QrCredential>;
   activeQrNonces: Map<string, string>;
+  qrRateLimits: Map<string, RateLimitBucket>;
+  wifiProofs: Map<string, WifiProofRecord>;
+  usedWifiProofIds: Set<string>;
   auditLog: Record<string, unknown>[];
 };
 
@@ -51,20 +58,70 @@ type TokenPayload = {
   expiresAt: string;
   canViewPassword: boolean;
   qrNonce?: string;
+  passwordGeneration?: number;
 };
+
+type QrCredential = {
+  qrKey: string;
+  routeVersion: number;
+  passwordGeneration: number;
+};
+
+type RateLimitBucket = {
+  windowStartedAt: string;
+  count: number;
+};
+
+type WifiProofRecord = WifiProof & {
+  id: string;
+  expiresAt: string;
+};
+
+type WifiProofPayload = {
+  audience: 'wifi-proof';
+  proofId: string;
+  storeId: string;
+  verifiedAt: string;
+  expiresAt: string;
+};
+
+type ApiFailure = {
+  ok: false;
+  status: number;
+  error: string;
+};
+
+type ApiResult<T extends object = object> =
+  | ({ ok: true } & T)
+  | ApiFailure;
+
+const QR_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const QR_RATE_LIMIT_MAX = 5;
 
 export function health() {
   return { ok: true, service: 'lechigo-api' };
 }
 
-export function createApiContext(input: { signingSecret: string }): ApiContext {
+export function createApiContext(input: {
+  signingSecret: string;
+  now?: () => string;
+}): ApiContext {
   return {
     signingSecret: input.signingSecret,
+    now: input.now ?? (() => new Date().toISOString()),
     stores: new Map(),
     routes: new Map(),
+    qrCredentials: new Map(),
     activeQrNonces: new Map(),
+    qrRateLimits: new Map(),
+    wifiProofs: new Map(),
+    usedWifiProofIds: new Set(),
     auditLog: [],
   };
+}
+
+export function setApiNow(context: ApiContext, now: string): void {
+  context.now = () => now;
 }
 
 export function registerStore(
@@ -82,7 +139,7 @@ export function saveRouteDraft(
     storeId: string;
     route: RouteDraftInput;
   },
-) {
+): ApiResult<{ route: Route }> {
   const ownership = authorizeStore(context, input.merchant, input.storeId);
 
   if (!ownership.ok) {
@@ -98,6 +155,8 @@ export function saveRouteDraft(
   };
 
   context.routes.set(routeKey(input.storeId, route.id), route);
+  context.qrCredentials.delete(routeKey(input.storeId, route.id));
+  context.activeQrNonces.delete(routeKey(input.storeId, route.id));
   return { ok: true, route };
 }
 
@@ -110,7 +169,7 @@ export function recordTestRun(
     testedAt: string;
     result: 'pass' | 'fail';
   },
-) {
+): ApiResult<{ route: Route }> {
   const ownership = authorizeStore(context, input.merchant, input.storeId);
 
   if (!ownership.ok) {
@@ -125,11 +184,18 @@ export function recordTestRun(
 
   const updated: Route = {
     ...route,
-    testedAt: input.result === 'pass' ? input.testedAt : route.testedAt,
-    status: input.result === 'pass' ? 'tested' : route.status,
+    testedAt: input.result === 'pass' ? input.testedAt : undefined,
+    status: input.result === 'pass' ? 'tested' : 'test_failed',
   };
 
   context.routes.set(routeKey(input.storeId, input.routeId), updated);
+
+  if (input.result === 'fail') {
+    context.qrCredentials.delete(routeKey(input.storeId, input.routeId));
+    context.activeQrNonces.delete(routeKey(input.storeId, input.routeId));
+    context.qrRateLimits.delete(routeKey(input.storeId, input.routeId));
+  }
+
   return { ok: true, route: updated };
 }
 
@@ -140,7 +206,7 @@ export function activateRoute(
     storeId: string;
     routeId: string;
   },
-) {
+): ApiResult<{ route: Route }> {
   const ownership = authorizeStore(context, input.merchant, input.storeId);
 
   if (!ownership.ok) {
@@ -164,6 +230,43 @@ export function activateRoute(
   return { ok: true, route: activeRoute };
 }
 
+export function issueQrCredential(
+  context: ApiContext,
+  input: {
+    merchant: MerchantPrincipal;
+    storeId: string;
+    routeId: string;
+  },
+): ApiResult<{ qrKey: string }> {
+  const ownership = authorizeStore(context, input.merchant, input.storeId);
+
+  if (!ownership.ok) {
+    return ownership;
+  }
+
+  const route = getRoute(context, input.storeId, input.routeId);
+  const store = context.stores.get(input.storeId);
+
+  if (!route || !store) {
+    return { ok: false, status: 404, error: 'route-not-found' };
+  }
+
+  if (route.status !== 'active') {
+    return { ok: false, status: 409, error: 'route-not-active' };
+  }
+
+  const qrKey = randomUUID();
+  context.qrCredentials.set(routeKey(input.storeId, input.routeId), {
+    qrKey,
+    routeVersion: route.version,
+    passwordGeneration: currentPasswordGeneration(store),
+  });
+  context.activeQrNonces.delete(routeKey(input.storeId, input.routeId));
+  context.qrRateLimits.delete(routeKey(input.storeId, input.routeId));
+
+  return { ok: true, qrKey };
+}
+
 export function rotatePassword(
   context: ApiContext,
   input: {
@@ -173,7 +276,7 @@ export function rotatePassword(
     password: string;
     updatedAt: string;
   },
-) {
+): ApiResult<{ route: Route }> {
   const ownership = authorizeStore(context, input.merchant, input.storeId);
 
   if (!ownership.ok) {
@@ -190,9 +293,13 @@ export function rotatePassword(
   context.stores.set(input.storeId, {
     ...store,
     restroomPassword: input.password,
+    passwordGeneration: currentPasswordGeneration(store) + 1,
   });
   const updatedRoute = rotateRoutePassword(route, input.updatedAt);
   context.routes.set(routeKey(input.storeId, input.routeId), updatedRoute);
+  context.qrCredentials.delete(routeKey(input.storeId, input.routeId));
+  context.activeQrNonces.delete(routeKey(input.storeId, input.routeId));
+  context.qrRateLimits.delete(routeKey(input.storeId, input.routeId));
 
   return { ok: true, route: updatedRoute };
 }
@@ -202,31 +309,49 @@ export function createQrSession(
   input: {
     storeId: string;
     routeId: string;
-    issuedAt: string;
-    qrNonce: string;
+    qrKey: string;
   },
-) {
+): ApiResult<{ token: string; expiresAt: string }> {
   const route = getRoute(context, input.storeId, input.routeId);
 
   if (!route) {
     return { ok: false, status: 404, error: 'route-not-found' };
   }
 
+  const qrCredential = context.qrCredentials.get(
+    routeKey(input.storeId, input.routeId),
+  );
+
+  if (
+    !qrCredential ||
+    qrCredential.qrKey !== input.qrKey ||
+    qrCredential.routeVersion !== route.version
+  ) {
+    return { ok: false, status: 401, error: 'invalid-qr-key' };
+  }
+
   const exposure = canExposeRoute({
     route,
     source: 'qr',
-    at: input.issuedAt,
+    at: context.now(),
   });
 
   if (!exposure.ok) {
     return { ok: false, status: 403, error: exposure.reason };
   }
 
+  const rateLimit = consumeQrRateLimit(context, input.storeId, input.routeId);
+
+  if (!rateLimit.ok) {
+    return rateLimit;
+  }
+
   const session = createGuestSession({
     route,
     source: 'qr',
-    issuedAt: input.issuedAt,
+    issuedAt: context.now(),
   });
+  const qrNonce = randomUUID();
   const payload = {
     audience: 'guest-route',
     storeId: route.storeId,
@@ -235,10 +360,11 @@ export function createQrSession(
     source: 'qr',
     expiresAt: session.expiresAt,
     canViewPassword: session.canViewPassword,
-    qrNonce: input.qrNonce,
+    qrNonce,
+    passwordGeneration: qrCredential.passwordGeneration,
   } satisfies TokenPayload;
 
-  context.activeQrNonces.set(routeKey(input.storeId, input.routeId), input.qrNonce);
+  context.activeQrNonces.set(routeKey(input.storeId, input.routeId), qrNonce);
 
   return {
     ok: true,
@@ -247,26 +373,67 @@ export function createQrSession(
   };
 }
 
+export function issueWifiProof(
+  context: ApiContext,
+  input: {
+    storeId: string;
+    verifiedAt: string;
+  },
+): ApiResult<{ wifiProofToken: string; expiresAt: string }> {
+  if (!context.stores.has(input.storeId)) {
+    return { ok: false, status: 404, error: 'store-not-found' };
+  }
+
+  const proofId = randomUUID();
+  const expiresAt = new Date(Date.parse(input.verifiedAt) + 5 * 60 * 1000)
+    .toISOString();
+  const proof = {
+    id: proofId,
+    storeId: input.storeId,
+    verifiedAt: input.verifiedAt,
+    expiresAt,
+  };
+
+  context.wifiProofs.set(proofId, proof);
+
+  return {
+    ok: true,
+    wifiProofToken: signToken(context, {
+      audience: 'wifi-proof',
+      proofId,
+      storeId: input.storeId,
+      verifiedAt: input.verifiedAt,
+      expiresAt,
+    }),
+    expiresAt,
+  };
+}
+
 export function createWifiSession(
   context: ApiContext,
   input: {
     storeId: string;
     routeId: string;
-    issuedAt: string;
-    wifiProof: WifiProof;
+    wifiProofToken: string;
   },
-) {
+): ApiResult<{ token: string; expiresAt: string; proofExpiresAt?: string }> {
   const route = getRoute(context, input.storeId, input.routeId);
 
   if (!route) {
     return { ok: false, status: 404, error: 'route-not-found' };
   }
 
+  const wifiProof = verifyWifiProof(context, input.wifiProofToken);
+
+  if (!wifiProof.ok) {
+    return wifiProof;
+  }
+
   const exposure = canExposeRoute({
     route,
     source: 'wifi',
-    at: input.issuedAt,
-    wifiProof: input.wifiProof,
+    at: context.now(),
+    wifiProof: wifiProof.proof,
   });
 
   if (!exposure.ok) {
@@ -276,9 +443,10 @@ export function createWifiSession(
   const session = createGuestSession({
     route,
     source: 'wifi',
-    issuedAt: input.issuedAt,
-    wifiProof: input.wifiProof,
+    issuedAt: context.now(),
+    wifiProof: wifiProof.proof,
   });
+  const store = context.stores.get(route.storeId);
   const payload = {
     audience: 'guest-route',
     storeId: route.storeId,
@@ -287,7 +455,9 @@ export function createWifiSession(
     source: 'wifi',
     expiresAt: session.expiresAt,
     canViewPassword: session.canViewPassword,
+    passwordGeneration: store ? currentPasswordGeneration(store) : 0,
   } satisfies TokenPayload;
+  context.usedWifiProofIds.add(wifiProof.proof.id);
 
   return {
     ok: true,
@@ -299,9 +469,9 @@ export function createWifiSession(
 
 export function fetchGuestRoute(
   context: ApiContext,
-  input: { token: string; at: string },
-) {
-  const token = verifyGuestToken(context, input.token, input.at);
+  input: { token: string; at?: string },
+): ApiResult<{ route: SerializedRoute }> {
+  const token = verifyGuestToken(context, input.token, input.at ?? context.now());
 
   if (!token.ok) {
     return token;
@@ -309,7 +479,11 @@ export function fetchGuestRoute(
 
   const route = getRoute(context, token.payload.storeId, token.payload.routeId);
 
-  if (!route || route.version !== token.payload.routeVersion) {
+  if (
+    !route ||
+    route.version !== token.payload.routeVersion ||
+    route.status !== 'active'
+  ) {
     return { ok: false, status: 404, error: 'route-not-found' };
   }
 
@@ -318,9 +492,9 @@ export function fetchGuestRoute(
 
 export function fetchPassword(
   context: ApiContext,
-  input: { token: string; at: string },
-) {
-  const token = verifyGuestToken(context, input.token, input.at);
+  input: { token: string; at?: string },
+): ApiResult<{ password: string }> {
+  const token = verifyGuestToken(context, input.token, input.at ?? context.now());
 
   if (!token.ok) {
     return token;
@@ -334,6 +508,20 @@ export function fetchPassword(
 
   if (!store) {
     return { ok: false, status: 404, error: 'store-not-found' };
+  }
+
+  const route = getRoute(context, token.payload.storeId, token.payload.routeId);
+
+  if (
+    !route ||
+    route.version !== token.payload.routeVersion ||
+    route.status !== 'active'
+  ) {
+    return { ok: false, status: 404, error: 'route-not-found' };
+  }
+
+  if (token.payload.passwordGeneration !== currentPasswordGeneration(store)) {
+    return { ok: false, status: 401, error: 'session-rotated' };
   }
 
   context.auditLog.push({
@@ -351,7 +539,7 @@ function authorizeStore(
   context: ApiContext,
   merchant: MerchantPrincipal,
   storeId: string,
-) {
+): ApiResult {
   const store = context.stores.get(storeId);
 
   if (!store || store.merchantId !== merchant.id) {
@@ -395,7 +583,39 @@ function verifyGuestToken(
   return { ok: true, payload };
 }
 
-function signToken(context: ApiContext, payload: TokenPayload): string {
+function verifyWifiProof(
+  context: ApiContext,
+  token: string,
+):
+  | { ok: true; proof: WifiProofRecord }
+  | { ok: false; status: 401; error: string } {
+  const payload = parseToken(context, token);
+
+  if (!isWifiProofPayload(payload)) {
+    return { ok: false, status: 401, error: 'invalid-wifi-proof' };
+  }
+
+  if (Date.parse(context.now()) > Date.parse(payload.expiresAt)) {
+    return { ok: false, status: 401, error: 'wifi-proof-expired' };
+  }
+
+  if (context.usedWifiProofIds.has(payload.proofId)) {
+    return { ok: false, status: 401, error: 'wifi-proof-replayed' };
+  }
+
+  const proof = context.wifiProofs.get(payload.proofId);
+
+  if (!proof || proof.storeId !== payload.storeId) {
+    return { ok: false, status: 401, error: 'invalid-wifi-proof' };
+  }
+
+  return { ok: true, proof };
+}
+
+function signToken(
+  context: ApiContext,
+  payload: TokenPayload | WifiProofPayload,
+): string {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signature = signatureFor(context, encodedPayload);
 
@@ -405,7 +625,7 @@ function signToken(context: ApiContext, payload: TokenPayload): string {
 function parseToken(
   context: ApiContext,
   token: string,
-): TokenPayload | undefined {
+): TokenPayload | WifiProofPayload | undefined {
   const [encodedPayload, signature] = token.split('.');
 
   if (!encodedPayload || !signature) {
@@ -450,4 +670,42 @@ function getRoute(
 
 function routeKey(storeId: string, routeId: string): string {
   return `${storeId}:${routeId}`;
+}
+
+function consumeQrRateLimit(
+  context: ApiContext,
+  storeId: string,
+  routeId: string,
+): ApiResult {
+  const key = routeKey(storeId, routeId);
+  const nowMs = Date.parse(context.now());
+  const current = context.qrRateLimits.get(key);
+
+  if (
+    !current ||
+    nowMs - Date.parse(current.windowStartedAt) > QR_RATE_LIMIT_WINDOW_MS
+  ) {
+    context.qrRateLimits.set(key, {
+      windowStartedAt: context.now(),
+      count: 1,
+    });
+    return { ok: true };
+  }
+
+  if (current.count >= QR_RATE_LIMIT_MAX) {
+    return { ok: false, status: 429, error: 'qr-rate-limited' };
+  }
+
+  current.count += 1;
+  return { ok: true };
+}
+
+function currentPasswordGeneration(store: StoreRecord): number {
+  return store.passwordGeneration ?? 0;
+}
+
+function isWifiProofPayload(
+  payload: TokenPayload | WifiProofPayload | undefined,
+): payload is WifiProofPayload {
+  return payload?.audience === 'wifi-proof';
 }

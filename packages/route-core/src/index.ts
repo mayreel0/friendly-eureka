@@ -1,6 +1,6 @@
 export const routeCorePackage = '@lechigo/route-core';
 
-export type RouteStatus = 'draft' | 'recorded' | 'tested' | 'active';
+export type RouteStatus = 'draft' | 'recorded' | 'test_failed' | 'tested' | 'active';
 export type EntrySource = 'qr' | 'wifi';
 export type TrackingConfidence = 'normal' | 'limited' | 'lost';
 
@@ -54,6 +54,7 @@ export type RouteDecision =
       reason:
         | 'route-not-tested'
         | 'route-test-stale'
+        | 'route-not-active'
         | 'password-retest-required'
         | 'wifi-proof-missing'
         | 'wifi-proof-store-mismatch'
@@ -67,7 +68,7 @@ export type SerializedRoute = {
   anchors: readonly Anchor[];
   segments: readonly Segment[];
   totalDistanceMeters: number;
-  floorTransitions: {
+  floorTransitions: readonly {
     segmentId: string;
     type: 'stairs' | 'elevator' | 'ramp';
     fromFloor: number;
@@ -75,7 +76,9 @@ export type SerializedRoute = {
   }[];
 };
 
-const SESSION_TTL_MS = 10 * 60 * 1000;
+export type RouteGeometry = Pick<Route, 'id' | 'anchors' | 'segments'>;
+
+const SESSION_TTL_MS = 20 * 60 * 1000;
 const WIFI_PROOF_TTL_MS = 5 * 60 * 1000;
 const DRIFT_RECOVERY_THRESHOLD_METERS = 1.5;
 
@@ -140,6 +143,10 @@ export function canExposeRoute(input: {
     return activation;
   }
 
+  if (input.route.status !== 'active') {
+    return { ok: false, reason: 'route-not-active' };
+  }
+
   if (input.source === 'qr') {
     return { ok: true };
   }
@@ -178,11 +185,21 @@ export function createGuestSession(input: {
 }
 
 export function assessProgress(input: {
-  route: Route;
+  route: RouteGeometry;
   currentAnchorId: string;
   trackingConfidence: TrackingConfidence;
   driftMeters: number;
-}) {
+}):
+  | {
+      status: 'recover';
+      reason: 'tracking-limited' | 'tracking-lost' | 'excessive-drift';
+      nextAnchorId: string;
+      instruction: string;
+    }
+  | {
+      status: 'on-route';
+      reason: 'tracking-normal';
+    } {
   if (input.trackingConfidence !== 'normal') {
     return {
       status: 'recover',
@@ -220,7 +237,7 @@ export function assessProgress(input: {
 }
 
 export function describeRecoveryStep(input: {
-  route: Route;
+  route: RouteGeometry;
   currentAnchorId: string;
   reason: 'tracking-limited' | 'tracking-lost' | 'excessive-drift';
 }) {
@@ -252,7 +269,7 @@ function validateWifiProof(
   return { ok: true };
 }
 
-function findNextAnchor(route: Route, currentAnchorId: string): Anchor {
+function findNextAnchor(route: RouteGeometry, currentAnchorId: string): Anchor {
   const segment = route.segments.find(
     (candidate) => candidate.fromAnchorId === currentAnchorId,
   );

@@ -80,16 +80,7 @@ export function buildArGuidance(input: {
   driftMeters: number;
 }) {
   const progress = assessProgress({
-    route: {
-      id: input.route.id,
-      storeId: input.route.storeId,
-      version: input.route.version,
-      status: 'active',
-      recordedAt: '1970-01-01T00:00:00.000Z',
-      testedAt: '1970-01-01T00:00:00.000Z',
-      anchors: input.route.anchors,
-      segments: input.route.segments,
-    },
+    route: input.route,
     currentAnchorId: input.currentAnchorId,
     trackingConfidence: input.trackingConfidence,
     driftMeters: input.driftMeters,

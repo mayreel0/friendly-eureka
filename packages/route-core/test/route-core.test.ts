@@ -120,7 +120,7 @@ describe('route core', () => {
       issuedAt: '2026-09-01T12:00:00.000Z',
     });
 
-    assert.equal(qrSession.expiresAt, '2026-09-01T12:10:00.000Z');
+    assert.equal(qrSession.expiresAt, '2026-09-01T12:20:00.000Z');
     assert.equal(qrSession.canViewPassword, false);
 
     const wifiSession = createGuestSession({
@@ -138,10 +138,30 @@ describe('route core', () => {
     assert.equal(wifiSession.source, 'wifi');
   });
 
-  it('requires either a QR session or valid Wi-Fi proof before exposing routes', () => {
+  it('requires an active route before exposing route geometry', () => {
     assert.deepEqual(
       canExposeRoute({
         route,
+        source: 'qr',
+        at: '2026-09-01T12:00:00.000Z',
+      }),
+      { ok: false, reason: 'route-not-active' },
+    );
+
+    assert.equal(
+      canExposeRoute({
+        route: { ...route, status: 'active' },
+        source: 'qr',
+        at: '2026-09-01T12:00:00.000Z',
+      }).ok,
+      true,
+    );
+  });
+
+  it('requires either a QR session or valid Wi-Fi proof before exposing routes', () => {
+    assert.deepEqual(
+      canExposeRoute({
+        route: { ...route, status: 'active' },
         source: 'wifi',
         at: '2026-09-01T12:00:00.000Z',
         wifiProof: {
@@ -154,7 +174,7 @@ describe('route core', () => {
 
     assert.equal(
       canExposeRoute({
-        route,
+        route: { ...route, status: 'active' },
         source: 'qr',
         at: '2026-09-01T12:00:00.000Z',
       }).ok,
