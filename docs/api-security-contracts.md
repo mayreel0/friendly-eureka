@@ -13,8 +13,8 @@ It is intentionally HTTP-framework-neutral so the same contracts can be mounted 
 
 - QR sessions are signed HMAC tokens with a 20-minute TTL.
 - QR session creation requires a server-issued route/version-bound QR credential.
-- QR session rotation invalidates earlier QR tokens for the same route.
-- Repeated QR session creation is rate-limited for copied-key abuse.
+- Concurrent QR sessions from the same route credential remain valid until their own expiry, route version, or password generation no longer matches.
+- Repeated QR session creation is rate-limited per route and client key for copied-key abuse.
 - Wi-Fi sessions require a server-issued, signed, store-matching proof that is no older than five minutes.
 - Wi-Fi proof tokens are one-time-use inputs for session creation.
 - Guest route payloads contain geometry and instructions only; restroom passwords are never included in route responses.
@@ -38,8 +38,9 @@ Covered cases:
 - health response does not expose configuration details
 - merchant store ownership enforcement
 - route test requirement before activation and QR exposure
-- expired, tampered, and replayed QR token rejection
-- QR credential validation and rate limiting
+- expired and tampered QR token rejection
+- concurrent QR session support, QR credential validation, and per-client rate limiting
 - Wi-Fi proof signature, store matching, expiry, and replay rejection
+- direct password rejection for QR-backed guest tokens
 - password/session-material invalidation after password rotation
 - password read redaction
