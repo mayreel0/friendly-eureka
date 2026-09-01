@@ -119,9 +119,10 @@ describe('route core', () => {
       source: 'qr',
       issuedAt: '2026-09-01T12:00:00.000Z',
     });
+    assert.ok(qrSession.ok);
 
-    assert.equal(qrSession.expiresAt, '2026-09-01T12:20:00.000Z');
-    assert.equal(qrSession.canViewPassword, false);
+    assert.equal(qrSession.session.expiresAt, '2026-09-01T12:20:00.000Z');
+    assert.equal(qrSession.session.canViewPassword, false);
 
     const wifiSession = createGuestSession({
       route,
@@ -132,10 +133,35 @@ describe('route core', () => {
         verifiedAt: '2026-09-01T11:59:30.000Z',
       },
     });
+    assert.ok(wifiSession.ok);
 
-    assert.equal(wifiSession.canViewPassword, true);
-    assert.equal(wifiSession.proofExpiresAt, '2026-09-01T12:04:30.000Z');
-    assert.equal(wifiSession.source, 'wifi');
+    assert.equal(wifiSession.session.canViewPassword, true);
+    assert.equal(wifiSession.session.proofExpiresAt, '2026-09-01T12:04:30.000Z');
+    assert.equal(wifiSession.session.source, 'wifi');
+  });
+
+  it('rejects invalid session timestamps without throwing', () => {
+    assert.deepEqual(
+      createGuestSession({
+        route,
+        source: 'qr',
+        issuedAt: 'not-a-date',
+      }),
+      { ok: false, reason: 'invalid-timestamp' },
+    );
+
+    assert.deepEqual(
+      createGuestSession({
+        route,
+        source: 'wifi',
+        issuedAt: '2026-09-01T12:00:00.000Z',
+        wifiProof: {
+          storeId: route.storeId,
+          verifiedAt: 'not-a-date',
+        },
+      }),
+      { ok: false, reason: 'invalid-timestamp' },
+    );
   });
 
   it('requires an active route before exposing route geometry', () => {
@@ -207,6 +233,18 @@ describe('route core', () => {
       {
         nextAnchorId: 'restroom',
         instruction: 'Point your camera at Restroom door to realign.',
+      },
+    );
+
+    assert.deepEqual(
+      describeRecoveryStep({
+        route: { ...route, anchors: [], segments: [] },
+        currentAnchorId: 'missing-anchor',
+        reason: 'tracking-lost',
+      }),
+      {
+        instruction:
+          'Look for the nearest store landmark or ask staff for directions.',
       },
     );
   });

@@ -58,8 +58,24 @@ export type RouteDecision =
         | 'password-retest-required'
         | 'wifi-proof-missing'
         | 'wifi-proof-store-mismatch'
-        | 'wifi-proof-expired';
+        | 'wifi-proof-expired'
+        | 'invalid-timestamp';
     };
+
+export type GuestSession = {
+  routeId: string;
+  routeVersion: number;
+  storeId: string;
+  source: EntrySource;
+  issuedAt: string;
+  expiresAt: string;
+  proofExpiresAt?: string;
+  canViewPassword: boolean;
+};
+
+export type GuestSessionResult =
+  | { ok: true; session: GuestSession }
+  | { ok: false; reason: 'invalid-timestamp' };
 
 export type SerializedRoute = {
   id: string;
@@ -159,28 +175,38 @@ export function createGuestSession(input: {
   source: EntrySource;
   issuedAt: string;
   wifiProof?: WifiProof;
-}) {
-  const issuedAt = new Date(input.issuedAt);
-  const expiresAt = new Date(issuedAt.getTime() + SESSION_TTL_MS);
+}): GuestSessionResult {
+  const issuedAtMs = parseTimestamp(input.issuedAt);
+
+  if (issuedAtMs === undefined) {
+    return { ok: false, reason: 'invalid-timestamp' };
+  }
+
+  const expiresAt = new Date(issuedAtMs + SESSION_TTL_MS);
   const proofDecision =
     input.source === 'wifi'
       ? validateWifiProof(input.route, input.wifiProof, input.issuedAt)
       : undefined;
   const proofExpiresAt = input.wifiProof
-    ? new Date(
-        Date.parse(input.wifiProof.verifiedAt) + WIFI_PROOF_TTL_MS,
-      ).toISOString()
+    ? addMsToTimestamp(input.wifiProof.verifiedAt, WIFI_PROOF_TTL_MS)
     : undefined;
 
+  if (input.wifiProof && proofExpiresAt === undefined) {
+    return { ok: false, reason: 'invalid-timestamp' };
+  }
+
   return {
-    routeId: input.route.id,
-    routeVersion: input.route.version,
-    storeId: input.route.storeId,
-    source: input.source,
-    issuedAt: input.issuedAt,
-    expiresAt: expiresAt.toISOString(),
-    proofExpiresAt,
-    canViewPassword: proofDecision?.ok === true,
+    ok: true,
+    session: {
+      routeId: input.route.id,
+      routeVersion: input.route.version,
+      storeId: input.route.storeId,
+      source: input.source,
+      issuedAt: input.issuedAt,
+      expiresAt: expiresAt.toISOString(),
+      proofExpiresAt,
+      canViewPassword: proofDecision?.ok === true,
+    },
   };
 }
 
@@ -193,7 +219,7 @@ export function assessProgress(input: {
   | {
       status: 'recover';
       reason: 'tracking-limited' | 'tracking-lost' | 'excessive-drift';
-      nextAnchorId: string;
+      nextAnchorId?: string;
       instruction: string;
     }
   | {
@@ -243,6 +269,13 @@ export function describeRecoveryStep(input: {
 }) {
   const nextAnchor = findNextAnchor(input.route, input.currentAnchorId);
 
+  if (!nextAnchor) {
+    return {
+      instruction:
+        'Look for the nearest store landmark or ask staff for directions.',
+    };
+  }
+
   return {
     nextAnchorId: nextAnchor.id,
     instruction: `Point your camera at ${nextAnchor.label} to realign.`,
@@ -262,23 +295,44 @@ function validateWifiProof(
     return { ok: false, reason: 'wifi-proof-store-mismatch' };
   }
 
-  if (Date.parse(at) - Date.parse(wifiProof.verifiedAt) > WIFI_PROOF_TTL_MS) {
+  const atMs = parseTimestamp(at);
+  const verifiedAtMs = parseTimestamp(wifiProof.verifiedAt);
+
+  if (atMs === undefined || verifiedAtMs === undefined) {
+    return { ok: false, reason: 'invalid-timestamp' };
+  }
+
+  if (atMs - verifiedAtMs > WIFI_PROOF_TTL_MS) {
     return { ok: false, reason: 'wifi-proof-expired' };
   }
 
   return { ok: true };
 }
 
-function findNextAnchor(route: RouteGeometry, currentAnchorId: string): Anchor {
+function findNextAnchor(
+  route: RouteGeometry,
+  currentAnchorId: string,
+): Anchor | undefined {
   const segment = route.segments.find(
     (candidate) => candidate.fromAnchorId === currentAnchorId,
   );
   const nextAnchorId = segment?.toAnchorId ?? route.anchors.at(-1)?.id;
-  const nextAnchor = route.anchors.find((anchor) => anchor.id === nextAnchorId);
 
-  if (!nextAnchor) {
-    throw new Error(`Route ${route.id} has no recovery anchor.`);
+  return route.anchors.find((anchor) => anchor.id === nextAnchorId);
+}
+
+function addMsToTimestamp(value: string, ms: number): string | undefined {
+  const timestamp = parseTimestamp(value);
+
+  if (timestamp === undefined) {
+    return undefined;
   }
 
-  return nextAnchor;
+  return new Date(timestamp + ms).toISOString();
+}
+
+function parseTimestamp(value: string): number | undefined {
+  const timestamp = Date.parse(value);
+
+  return Number.isFinite(timestamp) ? timestamp : undefined;
 }

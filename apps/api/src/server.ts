@@ -42,7 +42,6 @@ export type ApiContext = {
   stores: Map<string, StoreRecord>;
   routes: Map<string, Route>;
   qrCredentials: Map<string, QrCredential>;
-  activeQrNonces: Map<string, string>;
   qrRateLimits: Map<string, RateLimitBucket>;
   wifiProofs: Map<string, WifiProofRecord>;
   usedWifiProofIds: Set<string>;
@@ -57,7 +56,6 @@ type TokenPayload = {
   source: EntrySource;
   expiresAt: string;
   canViewPassword: boolean;
-  qrNonce?: string;
   passwordGeneration?: number;
 };
 
@@ -112,7 +110,6 @@ export function createApiContext(input: {
     stores: new Map(),
     routes: new Map(),
     qrCredentials: new Map(),
-    activeQrNonces: new Map(),
     qrRateLimits: new Map(),
     wifiProofs: new Map(),
     usedWifiProofIds: new Set(),
@@ -156,7 +153,6 @@ export function saveRouteDraft(
 
   context.routes.set(routeKey(input.storeId, route.id), route);
   context.qrCredentials.delete(routeKey(input.storeId, route.id));
-  context.activeQrNonces.delete(routeKey(input.storeId, route.id));
   return { ok: true, route };
 }
 
@@ -192,7 +188,6 @@ export function recordTestRun(
 
   if (input.result === 'fail') {
     context.qrCredentials.delete(routeKey(input.storeId, input.routeId));
-    context.activeQrNonces.delete(routeKey(input.storeId, input.routeId));
     context.qrRateLimits.delete(routeKey(input.storeId, input.routeId));
   }
 
@@ -261,7 +256,6 @@ export function issueQrCredential(
     routeVersion: route.version,
     passwordGeneration: currentPasswordGeneration(store),
   });
-  context.activeQrNonces.delete(routeKey(input.storeId, input.routeId));
   context.qrRateLimits.delete(routeKey(input.storeId, input.routeId));
 
   return { ok: true, qrKey };
@@ -298,7 +292,6 @@ export function rotatePassword(
   const updatedRoute = rotateRoutePassword(route, input.updatedAt);
   context.routes.set(routeKey(input.storeId, input.routeId), updatedRoute);
   context.qrCredentials.delete(routeKey(input.storeId, input.routeId));
-  context.activeQrNonces.delete(routeKey(input.storeId, input.routeId));
   context.qrRateLimits.delete(routeKey(input.storeId, input.routeId));
 
   return { ok: true, route: updatedRoute };
@@ -310,6 +303,7 @@ export function createQrSession(
     storeId: string;
     routeId: string;
     qrKey: string;
+    clientKey: string;
   },
 ): ApiResult<{ token: string; expiresAt: string }> {
   const route = getRoute(context, input.storeId, input.routeId);
@@ -340,7 +334,12 @@ export function createQrSession(
     return { ok: false, status: 403, error: exposure.reason };
   }
 
-  const rateLimit = consumeQrRateLimit(context, input.storeId, input.routeId);
+  const rateLimit = consumeQrRateLimit(
+    context,
+    input.storeId,
+    input.routeId,
+    input.clientKey,
+  );
 
   if (!rateLimit.ok) {
     return rateLimit;
@@ -351,25 +350,26 @@ export function createQrSession(
     source: 'qr',
     issuedAt: context.now(),
   });
-  const qrNonce = randomUUID();
+
+  if (!session.ok) {
+    return { ok: false, status: 400, error: session.reason };
+  }
+
   const payload = {
     audience: 'guest-route',
     storeId: route.storeId,
     routeId: route.id,
     routeVersion: route.version,
     source: 'qr',
-    expiresAt: session.expiresAt,
-    canViewPassword: session.canViewPassword,
-    qrNonce,
+    expiresAt: session.session.expiresAt,
+    canViewPassword: session.session.canViewPassword,
     passwordGeneration: qrCredential.passwordGeneration,
   } satisfies TokenPayload;
-
-  context.activeQrNonces.set(routeKey(input.storeId, input.routeId), qrNonce);
 
   return {
     ok: true,
     token: signToken(context, payload),
-    expiresAt: session.expiresAt,
+    expiresAt: session.session.expiresAt,
   };
 }
 
@@ -385,8 +385,12 @@ export function issueWifiProof(
   }
 
   const proofId = randomUUID();
-  const expiresAt = new Date(Date.parse(input.verifiedAt) + 5 * 60 * 1000)
-    .toISOString();
+  const expiresAt = addMsToTimestamp(input.verifiedAt, 5 * 60 * 1000);
+
+  if (expiresAt === undefined) {
+    return { ok: false, status: 400, error: 'invalid-timestamp' };
+  }
+
   const proof = {
     id: proofId,
     storeId: input.storeId,
@@ -446,6 +450,11 @@ export function createWifiSession(
     issuedAt: context.now(),
     wifiProof: wifiProof.proof,
   });
+
+  if (!session.ok) {
+    return { ok: false, status: 400, error: session.reason };
+  }
+
   const store = context.stores.get(route.storeId);
   const payload = {
     audience: 'guest-route',
@@ -453,8 +462,8 @@ export function createWifiSession(
     routeId: route.id,
     routeVersion: route.version,
     source: 'wifi',
-    expiresAt: session.expiresAt,
-    canViewPassword: session.canViewPassword,
+    expiresAt: session.session.expiresAt,
+    canViewPassword: session.session.canViewPassword,
     passwordGeneration: store ? currentPasswordGeneration(store) : 0,
   } satisfies TokenPayload;
   context.usedWifiProofIds.add(wifiProof.proof.id);
@@ -462,8 +471,8 @@ export function createWifiSession(
   return {
     ok: true,
     token: signToken(context, payload),
-    expiresAt: session.expiresAt,
-    proofExpiresAt: session.proofExpiresAt,
+    expiresAt: session.session.expiresAt,
+    proofExpiresAt: session.session.proofExpiresAt,
   };
 }
 
@@ -570,16 +579,6 @@ function verifyGuestToken(
     return { ok: false, status: 401, error: 'token-expired' };
   }
 
-  if (payload.source === 'qr') {
-    const currentNonce = context.activeQrNonces.get(
-      routeKey(payload.storeId, payload.routeId),
-    );
-
-    if (currentNonce !== payload.qrNonce) {
-      return { ok: false, status: 401, error: 'qr-session-rotated' };
-    }
-  }
-
   return { ok: true, payload };
 }
 
@@ -676,8 +675,9 @@ function consumeQrRateLimit(
   context: ApiContext,
   storeId: string,
   routeId: string,
+  clientKey: string,
 ): ApiResult {
-  const key = routeKey(storeId, routeId);
+  const key = `${routeKey(storeId, routeId)}:${clientKey}`;
   const nowMs = Date.parse(context.now());
   const current = context.qrRateLimits.get(key);
 
@@ -698,6 +698,16 @@ function consumeQrRateLimit(
 
   current.count += 1;
   return { ok: true };
+}
+
+function addMsToTimestamp(value: string, ms: number): string | undefined {
+  const timestamp = Date.parse(value);
+
+  if (!Number.isFinite(timestamp)) {
+    return undefined;
+  }
+
+  return new Date(timestamp + ms).toISOString();
 }
 
 function currentPasswordGeneration(store: StoreRecord): number {

@@ -127,6 +127,7 @@ describe('api service contracts', () => {
       storeId: 'store-1',
       routeId: 'route-1',
       qrKey: qr.qrKey,
+      clientKey: 'guest-a',
     });
     assert.ok(session.ok);
 
@@ -140,7 +141,7 @@ describe('api service contracts', () => {
     assert.equal('password' in guestRoute.route, false);
   });
 
-  it('rejects guessed, expired, tampered, and replayed QR session tokens', () => {
+  it('rejects guessed, expired, and tampered QR session tokens', () => {
     const api = createActiveRouteContext();
     const qr = issueQrCredential(api, {
       merchant,
@@ -154,6 +155,7 @@ describe('api service contracts', () => {
         storeId: 'store-1',
         routeId: 'route-1',
         qrKey: 'guessed-route-key',
+        clientKey: 'guest-a',
       }),
       { ok: false, status: 401, error: 'invalid-qr-key' },
     );
@@ -163,6 +165,7 @@ describe('api service contracts', () => {
       storeId: 'store-1',
       routeId: 'route-1',
       qrKey: qr.qrKey,
+      clientKey: 'guest-a',
     });
     assert.ok(session.ok);
 
@@ -181,21 +184,46 @@ describe('api service contracts', () => {
       }),
       { ok: false, status: 401, error: 'token-expired' },
     );
+  });
+
+  it('allows concurrent QR sessions from the same credential', () => {
+    const api = createActiveRouteContext();
+    const qr = issueQrCredential(api, {
+      merchant,
+      storeId: 'store-1',
+      routeId: 'route-1',
+    });
+    assert.ok(qr.ok);
 
     setApiNow(api, '2026-09-01T10:02:00.000Z');
-    const rotatedSession = createQrSession(api, {
+    const firstSession = createQrSession(api, {
       storeId: 'store-1',
       routeId: 'route-1',
       qrKey: qr.qrKey,
+      clientKey: 'guest-a',
     });
-    assert.ok(rotatedSession.ok);
+    assert.ok(firstSession.ok);
+
+    const secondSession = createQrSession(api, {
+      storeId: 'store-1',
+      routeId: 'route-1',
+      qrKey: qr.qrKey,
+      clientKey: 'guest-b',
+    });
+    assert.ok(secondSession.ok);
 
     setApiNow(api, '2026-09-01T10:03:00.000Z');
-    assert.deepEqual(
+    assert.equal(
       fetchGuestRoute(api, {
-        token: session.token,
-      }),
-      { ok: false, status: 401, error: 'qr-session-rotated' },
+        token: firstSession.token,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      fetchGuestRoute(api, {
+        token: secondSession.token,
+      }).ok,
+      true,
     );
   });
 
@@ -215,6 +243,7 @@ describe('api service contracts', () => {
           storeId: 'store-1',
           routeId: 'route-1',
           qrKey: qr.qrKey,
+          clientKey: 'copied-client',
         }).ok,
         true,
       );
@@ -225,8 +254,19 @@ describe('api service contracts', () => {
         storeId: 'store-1',
         routeId: 'route-1',
         qrKey: qr.qrKey,
+        clientKey: 'copied-client',
       }),
       { ok: false, status: 429, error: 'qr-rate-limited' },
+    );
+
+    assert.equal(
+      createQrSession(api, {
+        storeId: 'store-1',
+        routeId: 'route-1',
+        qrKey: qr.qrKey,
+        clientKey: 'different-client',
+      }).ok,
+      true,
     );
   });
 
@@ -291,6 +331,18 @@ describe('api service contracts', () => {
     });
   });
 
+  it('rejects invalid Wi-Fi proof timestamps without throwing', () => {
+    const api = createActiveRouteContext();
+
+    assert.deepEqual(
+      issueWifiProof(api, {
+        storeId: 'store-1',
+        verifiedAt: 'not-a-date',
+      }),
+      { ok: false, status: 400, error: 'invalid-timestamp' },
+    );
+  });
+
   it('invalidates password sessions and QR material after password rotation', () => {
     const api = createActiveRouteContext();
     const qr = issueQrCredential(api, {
@@ -332,6 +384,7 @@ describe('api service contracts', () => {
         storeId: 'store-1',
         routeId: 'route-1',
         qrKey: qr.qrKey,
+        clientKey: 'guest-a',
       }),
       { ok: false, status: 401, error: 'invalid-qr-key' },
     );
@@ -359,6 +412,7 @@ describe('api service contracts', () => {
         storeId: 'store-1',
         routeId: 'route-1',
         qrKey: qr.qrKey,
+        clientKey: 'guest-a',
       }),
       { ok: false, status: 401, error: 'invalid-qr-key' },
     );
@@ -369,6 +423,7 @@ describe('api service contracts', () => {
         storeId: 'store-1',
         routeId: 'route-1',
         qrKey: qr.qrKey,
+        clientKey: 'guest-a',
       }),
       { ok: false, status: 401, error: 'invalid-qr-key' },
     );
