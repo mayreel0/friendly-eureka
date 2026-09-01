@@ -10,6 +10,7 @@ export type GuestFallbackElement = {
   textContent: string | null;
   append(...nodes: GuestFallbackElement[]): void;
   appendChild(node: GuestFallbackElement): GuestFallbackElement;
+  replaceChildren(...nodes: GuestFallbackElement[]): void;
   setAttribute(name: string, value: string): void;
   getAttribute(name: string): string | null;
   querySelectorAll(selector: string): GuestFallbackElement[];
@@ -17,6 +18,39 @@ export type GuestFallbackElement = {
 
 export type GuestFallbackDocument = {
   createElement(tagName: string): GuestFallbackElement;
+};
+
+export type GuestEntryElementConfig = {
+  route: SerializedRoute | undefined;
+  token: string | undefined;
+  network: NetworkState;
+  arSupport: ArSupport;
+  currentAnchorId: string;
+  trackingConfidence: TrackingConfidence;
+  driftMeters: number;
+};
+
+export type GuestEntryElementConstructor = {
+  new (): {
+    shadowRoot: GuestFallbackElement | null;
+    attachShadow(init: { mode: 'open' }): GuestFallbackElement;
+    connectedCallback(): void;
+    configure(config: GuestEntryElementConfig): void;
+  };
+};
+
+export type GuestEntryElementRegistry = {
+  define(name: string, constructor: GuestEntryElementConstructor): void;
+  get(name: string): GuestEntryElementConstructor | undefined;
+};
+
+export type GuestEntryElementEnvironment = {
+  customElements: GuestEntryElementRegistry;
+  HTMLElement: new () => {
+    shadowRoot: GuestFallbackElement | null;
+    attachShadow(init: { mode: 'open' }): GuestFallbackElement;
+  };
+  document: GuestFallbackDocument;
 };
 
 export function guestEntrySurface() {
@@ -150,4 +184,59 @@ export function renderGuestFallbackScreen(
 
   section.append(heading, instruction, distance, anchors);
   return section;
+}
+
+export function registerGuestEntryElement(
+  environment: GuestEntryElementEnvironment,
+  tagName = 'lechigo-guest-entry',
+) {
+  const existing = environment.customElements.get(tagName);
+
+  if (existing) {
+    return existing;
+  }
+
+  const { HTMLElement, document } = environment;
+
+  class LechigoGuestEntryElement extends HTMLElement {
+    private config: GuestEntryElementConfig | undefined;
+
+    configure(config: GuestEntryElementConfig) {
+      this.config = config;
+      this.render();
+    }
+
+    connectedCallback() {
+      this.render();
+    }
+
+    private render() {
+      if (!this.config) {
+        return;
+      }
+
+      const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
+      const state = resolveEntryState(this.config);
+
+      if (state.screen === 'manual-fallback' && this.config.route) {
+        root.replaceChildren(
+          renderGuestFallbackScreen(document, {
+            route: this.config.route,
+            currentAnchorId: this.config.currentAnchorId,
+            trackingConfidence: this.config.trackingConfidence,
+            driftMeters: this.config.driftMeters,
+          }),
+        );
+        return;
+      }
+
+      const status = document.createElement('section');
+      status.setAttribute('data-screen', state.screen);
+      status.textContent = state.screen;
+      root.replaceChildren(status);
+    }
+  }
+
+  environment.customElements.define(tagName, LechigoGuestEntryElement);
+  return LechigoGuestEntryElement;
 }
