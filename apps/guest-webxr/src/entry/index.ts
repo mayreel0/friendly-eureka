@@ -6,6 +6,18 @@ import {
 
 export type ArSupport = 'webxr' | 'ios-app-clip' | 'manual';
 export type NetworkState = 'online' | 'offline';
+export type GuestFallbackElement = {
+  textContent: string | null;
+  append(...nodes: GuestFallbackElement[]): void;
+  appendChild(node: GuestFallbackElement): GuestFallbackElement;
+  setAttribute(name: string, value: string): void;
+  getAttribute(name: string): string | null;
+  querySelectorAll(selector: string): GuestFallbackElement[];
+};
+
+export type GuestFallbackDocument = {
+  createElement(tagName: string): GuestFallbackElement;
+};
 
 export function guestEntrySurface() {
   return 'guest-webxr';
@@ -103,4 +115,39 @@ export function buildArGuidance(input: {
     instruction: segment?.instruction ?? 'Continue to the restroom.',
     nextAnchorId: segment?.toAnchorId ?? input.route.anchors.at(-1)?.id,
   };
+}
+
+export function renderGuestFallbackScreen(
+  document: GuestFallbackDocument,
+  input: {
+    route: SerializedRoute;
+    currentAnchorId: string;
+    trackingConfidence: TrackingConfidence;
+    driftMeters: number;
+  },
+): GuestFallbackElement {
+  const guidance = buildArGuidance(input);
+  const section = document.createElement('section');
+  section.setAttribute('data-screen', 'manual-fallback');
+
+  const heading = document.createElement('h1');
+  heading.textContent = 'Manual route guidance';
+
+  const instruction = document.createElement('p');
+  instruction.textContent = guidance.instruction;
+
+  const distance = document.createElement('p');
+  distance.textContent = `${input.route.totalDistanceMeters} meters`;
+
+  const anchors = document.createElement('ol');
+
+  for (const anchor of input.route.anchors) {
+    const item = document.createElement('li');
+    item.setAttribute('data-anchor-id', anchor.id);
+    item.textContent = anchor.label;
+    anchors.appendChild(item);
+  }
+
+  section.append(heading, instruction, distance, anchors);
+  return section;
 }

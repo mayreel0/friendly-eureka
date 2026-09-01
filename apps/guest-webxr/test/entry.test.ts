@@ -4,7 +4,10 @@ import { describe, it } from 'node:test';
 import {
   buildArGuidance,
   detectArSupport,
+  type GuestFallbackDocument,
+  type GuestFallbackElement,
   guestEntrySurface,
+  renderGuestFallbackScreen,
   resolveEntryState,
 } from '../src/entry/index.ts';
 
@@ -135,4 +138,87 @@ describe('guest WebXR entry', () => {
       },
     );
   });
+
+  it('renders a non-blank manual fallback screen in a browser document', () => {
+    const document = createTestDocument();
+
+    const screen = renderGuestFallbackScreen(document, {
+      route,
+      currentAnchorId: 'entrance',
+      trackingConfidence: 'normal',
+      driftMeters: 0.2,
+    });
+
+    assert.equal(screen.getAttribute('data-screen'), 'manual-fallback');
+    assert.match(screen.textContent ?? '', /Manual route guidance/);
+    assert.match(screen.textContent ?? '', /Follow the hallway to the restroom\./);
+    assert.match(screen.textContent ?? '', /8 meters/);
+    assert.equal(screen.querySelectorAll('[data-anchor-id]').length, 2);
+  });
 });
+
+function createTestDocument(): GuestFallbackDocument {
+  return {
+    createElement(tagName) {
+      return new TestElement(tagName);
+    },
+  };
+}
+
+class TestElement implements GuestFallbackElement {
+  private readonly attributes = new Map<string, string>();
+  private readonly children: GuestFallbackElement[] = [];
+  private ownTextContent: string | null = null;
+  readonly tagName: string;
+
+  constructor(tagName: string) {
+    this.tagName = tagName;
+  }
+
+  get textContent() {
+    const childText = this.children
+      .map((child) => child.textContent ?? '')
+      .join('');
+
+    return `${this.ownTextContent ?? ''}${childText}`;
+  }
+
+  set textContent(value: string | null) {
+    this.ownTextContent = value;
+  }
+
+  append(...nodes: GuestFallbackElement[]) {
+    this.children.push(...nodes);
+  }
+
+  appendChild(node: GuestFallbackElement) {
+    this.children.push(node);
+    return node;
+  }
+
+  setAttribute(name: string, value: string) {
+    this.attributes.set(name, value);
+  }
+
+  getAttribute(name: string) {
+    return this.attributes.get(name) ?? null;
+  }
+
+  querySelectorAll(selector: string) {
+    if (selector !== '[data-anchor-id]') {
+      return [];
+    }
+
+    return this.findElementsWithAttribute('data-anchor-id');
+  }
+
+  private findElementsWithAttribute(name: string): GuestFallbackElement[] {
+    const matches: GuestFallbackElement[] = this.getAttribute(name) ? [this] : [];
+
+    for (const child of this.children) {
+      matches.push(...child.querySelectorAll(`[${name}]`));
+    }
+
+    return matches;
+  }
+}
