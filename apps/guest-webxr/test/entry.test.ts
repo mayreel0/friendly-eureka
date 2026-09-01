@@ -4,9 +4,11 @@ import { describe, it } from 'node:test';
 import {
   buildArGuidance,
   detectArSupport,
+  type GuestEntryElementConstructor,
   type GuestFallbackDocument,
   type GuestFallbackElement,
   guestEntrySurface,
+  registerGuestEntryElement,
   renderGuestFallbackScreen,
   resolveEntryState,
 } from '../src/entry/index.ts';
@@ -155,6 +157,49 @@ describe('guest WebXR entry', () => {
     assert.match(screen.textContent ?? '', /8 meters/);
     assert.equal(screen.querySelectorAll('[data-anchor-id]').length, 2);
   });
+
+  it('registers a lightweight custom element shell for fallback rendering', () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+
+    registerGuestEntryElement({
+      customElements: registry,
+      HTMLElement: TestGuestHTMLElement,
+      document,
+    });
+
+    registerGuestEntryElement({
+      customElements: registry,
+      HTMLElement: TestGuestHTMLElement,
+      document,
+    });
+
+    assert.equal(registry.defineCalls.length, 1);
+    assert.equal(registry.defineCalls[0]?.name, 'lechigo-guest-entry');
+
+    const GuestEntryElement = registry.get('lechigo-guest-entry');
+    assert.ok(GuestEntryElement);
+
+    const element = new GuestEntryElement();
+    element.configure({
+      route,
+      token: 'signed-token',
+      network: 'online',
+      arSupport: 'manual',
+      currentAnchorId: 'entrance',
+      trackingConfidence: 'normal',
+      driftMeters: 0.2,
+    });
+    element.connectedCallback();
+
+    assert.equal(element.shadowRoot?.getAttribute('data-shadow-root'), 'open');
+    const screens = element.shadowRoot?.querySelectorAll('[data-screen]') ?? [];
+
+    assert.equal(screens.length, 1);
+    assert.equal(screens[0]?.getAttribute('data-screen'), 'manual-fallback');
+    assert.match(element.shadowRoot?.textContent ?? '', /Manual route guidance/);
+    assert.match(element.shadowRoot?.textContent ?? '', /Follow the hallway to the restroom\./);
+  });
 });
 
 function createTestDocument(): GuestFallbackDocument {
@@ -196,6 +241,10 @@ class TestElement implements GuestFallbackElement {
     return node;
   }
 
+  replaceChildren(...nodes: GuestFallbackElement[]) {
+    this.children.splice(0, this.children.length, ...nodes);
+  }
+
   setAttribute(name: string, value: string) {
     this.attributes.set(name, value);
   }
@@ -205,11 +254,13 @@ class TestElement implements GuestFallbackElement {
   }
 
   querySelectorAll(selector: string) {
-    if (selector !== '[data-anchor-id]') {
+    const attributeName = selector.match(/^\[([a-z-]+)\]$/)?.[1];
+
+    if (!attributeName) {
       return [];
     }
 
-    return this.findElementsWithAttribute('data-anchor-id');
+    return this.findElementsWithAttribute(attributeName);
   }
 
   private findElementsWithAttribute(name: string): GuestFallbackElement[] {
@@ -221,4 +272,35 @@ class TestElement implements GuestFallbackElement {
 
     return matches;
   }
+}
+
+class TestGuestHTMLElement {
+  shadowRoot: GuestFallbackElement | null = null;
+
+  attachShadow(init: { mode: 'open' }) {
+    const root = new TestElement('shadow-root');
+    root.setAttribute('data-shadow-root', init.mode);
+    this.shadowRoot = root;
+    return root;
+  }
+}
+
+function createTestCustomElementRegistry() {
+  const definitions = new Map<string, GuestEntryElementConstructor>();
+
+  return {
+    defineCalls: [] as Array<{
+      name: string;
+      constructor: GuestEntryElementConstructor;
+    }>,
+
+    define(name: string, constructor: GuestEntryElementConstructor) {
+      definitions.set(name, constructor);
+      this.defineCalls.push({ name, constructor });
+    },
+
+    get(name: string) {
+      return definitions.get(name);
+    },
+  };
 }
