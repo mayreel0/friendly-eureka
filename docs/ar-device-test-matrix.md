@@ -13,6 +13,8 @@
 npm test -- apps/guest-webxr/test/entry.test.ts packages/ui/test/password-panel.test.ts
 ```
 
+Latest automated dry run: `docs/pilot-qa-runs/2026-09-01-api-hardening-dry-run.md`.
+
 ## Manual Device Exit Criteria
 
 - iOS App Clip opens from the pilot QR code on a signed physical device.

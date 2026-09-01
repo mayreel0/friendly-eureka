@@ -331,6 +331,51 @@ describe('api service contracts', () => {
     });
   });
 
+  it('rejects password access from QR-backed guest sessions', () => {
+    const api = createActiveRouteContext();
+    const qr = issueQrCredential(api, {
+      merchant,
+      storeId: 'store-1',
+      routeId: 'route-1',
+    });
+    assert.ok(qr.ok);
+
+    const session = createQrSession(api, {
+      storeId: 'store-1',
+      routeId: 'route-1',
+      qrKey: qr.qrKey,
+      clientKey: 'guest-a',
+    });
+    assert.ok(session.ok);
+
+    assert.deepEqual(
+      fetchPassword(api, {
+        token: session.token,
+      }),
+      { ok: false, status: 403, error: 'password-forbidden' },
+    );
+  });
+
+  it('rejects expired Wi-Fi proof tokens before creating password sessions', () => {
+    const api = createActiveRouteContext();
+    const proof = issueWifiProof(api, {
+      storeId: 'store-1',
+      verifiedAt: '2026-09-01T10:31:00.000Z',
+    });
+    assert.ok(proof.ok);
+
+    setApiNow(api, '2026-09-01T10:36:00.001Z');
+
+    assert.deepEqual(
+      createWifiSession(api, {
+        storeId: 'store-1',
+        routeId: 'route-1',
+        wifiProofToken: proof.wifiProofToken,
+      }),
+      { ok: false, status: 401, error: 'wifi-proof-expired' },
+    );
+  });
+
   it('rejects invalid Wi-Fi proof timestamps without throwing', () => {
     const api = createActiveRouteContext();
 
