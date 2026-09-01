@@ -58,7 +58,7 @@ These remain P1 but should follow the API hardening work:
 
 | Item | Why deferred | First useful action |
 |---|---|---|
-| Browser smoke coverage for guest fallback screens | It may require adding a browser runner or local dev harness, which is wider than API test additions. | Inspect app shape and choose a minimal Playwright or Node-render smoke path. |
+| Browser smoke coverage for guest fallback screens | API hardening landed first; the follow-up branch added a dependency-free DOM-shaped render smoke. | Add real browser visual smoke once the guest app has a dev server or browser shell. |
 | Physical QR placement metadata | It depends on a real pilot route recording or a closer recorder simulation. | During the first manual run, capture QR placement location, orientation, and route start anchor evidence. |
 | Manual QA evidence habit | The template exists; the habit is proven by use over multiple runs. | Add one run file per QA pass and keep follow-up priorities current. |
 

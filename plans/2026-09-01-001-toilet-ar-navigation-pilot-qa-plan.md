@@ -153,7 +153,7 @@ Do these after P0 is clean, before expanding beyond one pilot store:
 
 - Implement `plans/2026-09-01-002-pilot-qa-p1-test-hardening-plan.md` to turn the W1 and W3 dry-run partials into direct API evidence.
 - Keep using `docs/pilot-qa-checklist.md` and `docs/pilot-qa-runs/` for manual QA evidence.
-- Add real browser smoke coverage for guest fallback screens if the current tests remain state-only.
+- Keep the DOM-shaped guest fallback render smoke current, and add real browser visual smoke once the guest app has a dev server or browser shell.
 - Tighten merchant admin copy and checklist states around "recorded", "tested", and "active".
 - Make device support status visible enough that a tester knows whether they are in AR, handoff, or fallback mode.
 

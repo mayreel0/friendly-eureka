@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | iOS App Clip ARKit | TBD physical iPhone | QR invocation opens App Clip and starts ARKit tracking | Not run | Requires Apple signing and physical device |
 | Android Chrome WebXR | TBD ARCore-capable Android phone | WebXR support detection reports AR availability | Not run | Fast-follow after QR pilot |
-| Guest fallback | Desktop or unsupported mobile browser | Non-AR landmark steps are shown | Automated | Covered by `apps/guest-webxr/test/entry.test.ts` |
+| Guest fallback | Desktop or unsupported mobile browser | Non-AR landmark steps are shown | Automated | Covered by state and DOM-shaped render smoke in `apps/guest-webxr/test/entry.test.ts` |
 | Password panel | QR and Wi-Fi guest sessions | QR locks password; Wi-Fi proof can reveal it | Automated | Covered by `packages/ui/test/password-panel.test.ts` |
 
 ## Local Automated Checks
@@ -13,7 +13,7 @@
 npm test -- apps/guest-webxr/test/entry.test.ts packages/ui/test/password-panel.test.ts
 ```
 
-Latest automated dry run: `docs/pilot-qa-runs/2026-09-01-api-hardening-dry-run.md`.
+Latest automated dry run: `docs/pilot-qa-runs/2026-09-01-browser-fallback-dry-run.md`.
 
 ## Manual Device Exit Criteria
 
