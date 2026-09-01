@@ -1,0 +1,22 @@
+{
+  "name": "lechigo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "node --test \"packages/**/*.test.ts\" \"apps/**/*.test.ts\"",
+    "typecheck": "tsc --project tsconfig.base.json",
+    "lint": "npm run typecheck",
+    "format": "node scripts/check-format.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2"
+  }
+}

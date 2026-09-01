@@ -1,0 +1,9 @@
+{
+  "name": "@lechigo/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "node --check src/server.ts"
+  }
+}
