@@ -7,10 +7,47 @@ import {
   type GuestFallbackDocument,
   type GuestFallbackElement,
 } from '../src/entry/index.ts';
-import { bootstrapGuestEntry } from '../src/entry/bootstrap.ts';
+import {
+  bootstrapGuestEntry,
+  createHttpGuestRouteLoader,
+  parseGuestSessionToken,
+} from '../src/entry/bootstrap.ts';
+
+const route = {
+  id: 'route-1',
+  storeId: 'store-1',
+  version: 1,
+  anchors: [
+    {
+      id: 'entrance',
+      label: 'Entrance',
+      floor: 1,
+      position: { x: 0, y: 0, z: 0 },
+      type: 'start',
+    },
+    {
+      id: 'restroom',
+      label: 'Restroom',
+      floor: 1,
+      position: { x: 8, y: 0, z: 1 },
+      type: 'destination',
+    },
+  ],
+  segments: [
+    {
+      id: 'segment-1',
+      fromAnchorId: 'entrance',
+      toAnchorId: 'restroom',
+      instruction: 'Follow the hallway to the restroom.',
+      distanceMeters: 8,
+    },
+  ],
+  totalDistanceMeters: 8,
+  floorTransitions: [],
+} as const;
 
 describe('guest WebXR browser bootstrap', () => {
-  it('registers and configures the page custom element host', () => {
+  it('reads the guest token from the URL and loads route guidance', async () => {
     const document = createTestDocument();
     const registry = createTestCustomElementRegistry();
 
@@ -18,22 +55,175 @@ describe('guest WebXR browser bootstrap', () => {
       customElements: registry,
       HTMLElement: TestGuestHTMLElement,
       document,
+    }, {
+      location: {
+        search: '?token=signed-token',
+        hash: '',
+      },
+      routeLoader: async ({ token }) => ({
+        ok: true,
+        route,
+      }),
     });
 
     assert.equal(result.configured, true);
+    assert.ok(result.routeLoad);
+    assert.equal(document.host.configurations.length, 1);
+    assert.equal(document.host.configurations[0]?.token, 'signed-token');
+    assert.equal(
+      document.host.shadowRoot?.querySelectorAll('[data-screen]').at(0)?.getAttribute('data-screen'),
+      'loading',
+    );
+
+    await result.routeLoad;
+
+    assert.equal(document.host.configurations.length, 2);
+    assert.equal(document.host.configurations[1]?.route?.id, 'route-1');
     assert.equal(registry.defineCalls.length, 1);
     assert.equal(registry.defineCalls[0]?.name, 'lechigo-guest-entry');
-
-    const host = document.host;
-
-    assert.equal(host.configurations.length, 1);
-    assert.equal(host.configurations[0]?.arSupport, 'manual');
-    assert.equal(host.shadowRoot?.getAttribute('data-shadow-root'), 'open');
     assert.equal(
-      host.shadowRoot?.querySelectorAll('[data-screen]').at(0)?.getAttribute('data-screen'),
+      document.host.shadowRoot?.querySelectorAll('[data-screen]').at(0)?.getAttribute('data-screen'),
       'manual-fallback',
     );
-    assert.match(host.shadowRoot?.textContent ?? '', /Manual route guidance/);
+    assert.match(document.host.shadowRoot?.textContent ?? '', /Manual route guidance/);
+  });
+
+  it('renders an error state when route loading fails', async () => {
+    const document = createTestDocument();
+    const registry = createTestCustomElementRegistry();
+
+    const result = bootstrapGuestEntry({
+      customElements: registry,
+      HTMLElement: TestGuestHTMLElement,
+      document,
+    }, {
+      location: {
+        search: '',
+        hash: '#token=expired-token',
+      },
+      routeLoader: async () => ({
+        ok: false,
+        status: 401,
+        error: 'token-expired',
+      }),
+    });
+
+    assert.ok(result.routeLoad);
+
+    await result.routeLoad;
+
+    assert.equal(
+      document.host.shadowRoot?.querySelectorAll('[data-screen]').at(0)?.getAttribute('data-screen'),
+      'error',
+    );
+    assert.match(document.host.shadowRoot?.textContent ?? '', /token-expired/);
+  });
+
+  it('keeps guests in scan-required when the URL has no token', () => {
+    const document = createTestDocument();
+    const registry = createTestCustomElementRegistry();
+
+    const result = bootstrapGuestEntry({
+      customElements: registry,
+      HTMLElement: TestGuestHTMLElement,
+      document,
+    }, {
+      location: {
+        search: '',
+        hash: '',
+      },
+      routeLoader: async () => {
+        throw new Error('route loader should not run without a token');
+      },
+    });
+
+    assert.equal(result.configured, true);
+    assert.equal(result.routeLoad, undefined);
+    assert.equal(document.host.configurations.length, 1);
+    assert.equal(document.host.configurations[0]?.token, undefined);
+    assert.equal(
+      document.host.shadowRoot?.querySelectorAll('[data-screen]').at(0)?.getAttribute('data-screen'),
+      'scan-required',
+    );
+  });
+
+  it('parses QR session tokens from query strings and hash fragments', () => {
+    assert.equal(
+      parseGuestSessionToken({
+        search: '?token=query-token',
+        hash: '',
+      }),
+      'query-token',
+    );
+    assert.equal(
+      parseGuestSessionToken({
+        search: '',
+        hash: '#token=hash-token',
+      }),
+      'hash-token',
+    );
+    assert.equal(
+      parseGuestSessionToken({
+        search: '?token=',
+        hash: '#token=fallback-token',
+      }),
+      'fallback-token',
+    );
+  });
+
+  it('fetches guest routes using the API service response contract', async () => {
+    const requests: string[] = [];
+    const loader = createHttpGuestRouteLoader({
+      endpoint: '/api/guest/routes',
+      fetch: async (url) => {
+        requests.push(String(url));
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            route: {
+              id: 'route-1',
+              storeId: 'store-1',
+              version: 1,
+              anchors: [],
+              segments: [],
+              totalDistanceMeters: 0,
+              floorTransitions: [],
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+            },
+          },
+        );
+      },
+    });
+
+    const result = await loader({ token: 'signed token' });
+
+    assert.deepEqual(requests, ['/api/guest/routes?token=signed+token']);
+    assert.equal(result.ok, true);
+    assert.equal(result.ok ? result.route.id : undefined, 'route-1');
+  });
+
+  it('reports a stable error when the API route returns non-JSON', async () => {
+    const loader = createHttpGuestRouteLoader({
+      endpoint: '/api/guest/routes',
+      fetch: async () =>
+        new Response('Not found', {
+          status: 404,
+          headers: {
+            'content-type': 'text/plain; charset=utf-8',
+          },
+        }),
+    });
+
+    assert.deepEqual(await loader({ token: 'signed-token' }), {
+      ok: false,
+      status: 404,
+      error: 'route-load-failed',
+    });
   });
 });
 
