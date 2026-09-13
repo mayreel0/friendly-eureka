@@ -25,6 +25,7 @@ export type GuestEntryElementConfig = {
   token: string | undefined;
   network: NetworkState;
   arSupport: ArSupport;
+  routeLoadError?: string;
   currentAnchorId: string;
   trackingConfidence: TrackingConfidence;
   driftMeters: number;
@@ -79,10 +80,19 @@ export function resolveEntryState(input: {
   route: SerializedRoute | undefined;
   network: NetworkState;
   arSupport: ArSupport;
+  routeLoadError?: string;
 }) {
   if (!input.token) {
     return {
       screen: 'scan-required',
+      canStartAr: false,
+      canUseManualFallback: false,
+    };
+  }
+
+  if (input.routeLoadError) {
+    return {
+      screen: 'error',
       canStartAr: false,
       canUseManualFallback: false,
     };
@@ -232,7 +242,10 @@ export function registerGuestEntryElement(
 
       const status = document.createElement('section');
       status.setAttribute('data-screen', state.screen);
-      status.textContent = state.screen;
+      status.textContent =
+        state.screen === 'error'
+          ? (this.config.routeLoadError ?? 'route-load-failed')
+          : state.screen;
       root.replaceChildren(status);
     }
   }
