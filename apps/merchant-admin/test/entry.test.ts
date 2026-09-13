@@ -21,10 +21,18 @@ describe('merchant admin browser entry', () => {
     assert.equal(screen.getAttribute('data-screen'), 'pilot-route-recording');
     assert.match(screen.textContent ?? '', /Pilot route recording/);
     assert.match(screen.textContent ?? '', /Route not recorded/);
-    assert.equal(screen.querySelectorAll('[data-action-id]').length, 4);
+    assert.match(screen.textContent ?? '', /Pilot readiness/);
+    assert.equal(screen.querySelectorAll('[data-action-id]').length, 6);
+    assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
+    assert.match(screen.textContent ?? '', /Pending: Record route/);
+    assert.match(screen.textContent ?? '', /Pending: Place QR/);
+    assert.equal(
+      screen.querySelectorAll('[data-checklist-id]').at(0)?.getAttribute('data-complete'),
+      'false',
+    );
   });
 
-  it('advances through recording actions and renders a launch URL', async () => {
+  it('tracks pilot QA checklist before generating a launch URL', async () => {
     const registry = createTestCustomElementRegistry();
     const document = createTestDocument();
 
@@ -49,15 +57,43 @@ describe('merchant admin browser entry', () => {
     assert.ok(root);
 
     assert.match(root.textContent ?? '', /Route not recorded/);
+    assert.match(root.textContent ?? '', /Pending: Record route/);
+    assert.equal(
+      root.querySelectorAll('[data-checklist-id]').at(0)?.getAttribute('data-complete'),
+      'false',
+    );
 
     getActionButtons(root)[0]?.click();
     assert.match(root.textContent ?? '', /Route recorded/);
+    assert.match(root.textContent ?? '', /Done: Record route/);
+    assert.equal(
+      root.querySelectorAll('[data-checklist-id]').at(0)?.getAttribute('data-complete'),
+      'true',
+    );
 
     getActionButtons(root)[1]?.click();
     assert.match(root.textContent ?? '', /Test passed/);
+    assert.equal(
+      root.querySelectorAll('[data-checklist-id]').at(1)?.getAttribute('data-complete'),
+      'true',
+    );
 
     getActionButtons(root)[2]?.click();
     assert.match(root.textContent ?? '', /Route active/);
+    assert.equal(getActionButtons(root)[3]?.disabled, true);
+
+    getActionButtons(root)[4]?.click();
+    assert.equal(
+      root.querySelectorAll('[data-checklist-id]').at(2)?.getAttribute('data-complete'),
+      'true',
+    );
+
+    getActionButtons(root)[5]?.click();
+    assert.equal(
+      root.querySelectorAll('[data-checklist-id]').at(3)?.getAttribute('data-complete'),
+      'true',
+    );
+    assert.equal(getActionButtons(root)[3]?.disabled, false);
 
     getActionButtons(root)[3]?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));

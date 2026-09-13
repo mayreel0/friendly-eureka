@@ -9,10 +9,14 @@ export type PilotRouteRecordingScreenActionId =
   | 'record-route'
   | 'mark-test-passed'
   | 'activate-route'
+  | 'mark-qr-placed'
+  | 'mark-staff-fallback-ready'
   | 'generate-guest-url';
 
 export type PilotRouteRecordingScreenState = {
   stage: PilotRouteRecordingScreenStage;
+  hasQrPlacement: boolean;
+  hasStaffFallbackNote: boolean;
   routeId?: string;
   launchUrl?: string;
 };
@@ -67,7 +71,11 @@ type ShadowRootLike = {
 };
 
 export function createInitialPilotRouteRecordingScreenState(): PilotRouteRecordingScreenState {
-  return { stage: 'empty' };
+  return {
+    stage: 'empty',
+    hasQrPlacement: false,
+    hasStaffFallbackNote: false,
+  };
 }
 
 export function renderPilotRouteRecordingScreen(
@@ -100,6 +108,12 @@ export function renderPilotRouteRecordingScreen(
       margin: 0 0 12px;
       font-size: 1.75rem;
       line-height: 1.2;
+    }
+
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 1rem;
+      line-height: 1.3;
     }
 
     p {
@@ -137,6 +151,22 @@ export function renderPilotRouteRecordingScreen(
       background: #eceff3;
     }
 
+    ol {
+      display: grid;
+      gap: 8px;
+      margin: 20px 0 0;
+      padding-left: 22px;
+    }
+
+    li[data-complete="true"] {
+      color: #0f766e;
+      font-weight: 700;
+    }
+
+    li[data-complete="false"] {
+      color: #6b7280;
+    }
+
     a {
       overflow-wrap: anywhere;
       color: #0f766e;
@@ -166,13 +196,36 @@ export function renderPilotRouteRecordingScreen(
     actions.appendChild(button);
   }
 
+  const checklist = document.createElement('ol');
+  checklist.setAttribute('data-checklist', 'pilot-readiness');
+
+  for (const item of view.checklist) {
+    const checklistItem = document.createElement('li');
+    checklistItem.setAttribute('data-checklist-id', item.id);
+    checklistItem.setAttribute('data-complete', String(item.complete));
+    checklistItem.textContent = `${item.complete ? 'Done' : 'Pending'}: ${item.label}`;
+    checklist.appendChild(checklistItem);
+  }
+
   const launch = document.createElement('a');
   const launchUrl = toGuestLaunchUrl(view.launchUrl, options.guestOrigin);
   launch.setAttribute('data-launch-url', 'guest-webxr');
   launch.href = launchUrl ?? '';
   launch.textContent = launchUrl ?? 'Guest URL unavailable';
 
-  section.append(style, heading, status, route, actions, launch);
+  const checklistHeading = document.createElement('h2');
+  checklistHeading.textContent = 'Pilot readiness';
+
+  section.append(
+    style,
+    heading,
+    status,
+    route,
+    actions,
+    launch,
+    checklistHeading,
+    checklist,
+  );
   return section;
 }
 
@@ -239,12 +292,16 @@ export function registerMerchantAdminElement(
 }
 
 function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
+  const checklist = createPilotReadinessChecklist(state);
+  const isReadyToLaunch = checklist.every((item) => item.complete);
+
   return {
     stage: state.stage,
     title: 'Pilot route recording',
     status: statusForPilotRouteRecordingStage(state.stage),
     routeId: state.routeId,
     launchUrl: state.launchUrl,
+    checklist,
     actions: [
       {
         id: 'record-route',
@@ -264,7 +321,17 @@ function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
       {
         id: 'generate-guest-url',
         label: 'Generate guest URL',
-        enabled: state.stage === 'active',
+        enabled: state.stage === 'active' && isReadyToLaunch,
+      },
+      {
+        id: 'mark-qr-placed',
+        label: 'Confirm QR placed',
+        enabled: state.stage === 'active' && !state.hasQrPlacement,
+      },
+      {
+        id: 'mark-staff-fallback-ready',
+        label: 'Confirm fallback note',
+        enabled: state.stage === 'active' && !state.hasStaffFallbackNote,
       },
     ] satisfies {
       id: PilotRouteRecordingScreenActionId;
@@ -290,7 +357,40 @@ function applyLocalPilotRouteRecordingAction(
     return { ...state, stage: 'tested' };
   }
 
+  if (actionId === 'mark-qr-placed') {
+    return { ...state, hasQrPlacement: true };
+  }
+
+  if (actionId === 'mark-staff-fallback-ready') {
+    return { ...state, hasStaffFallbackNote: true };
+  }
+
   return { ...state, stage: 'active' };
+}
+
+function createPilotReadinessChecklist(state: PilotRouteRecordingScreenState) {
+  return [
+    {
+      id: 'record-route',
+      label: 'Record route',
+      complete: state.stage !== 'empty',
+    },
+    {
+      id: 'test-route',
+      label: 'Test route',
+      complete: ['tested', 'active', 'launch-ready'].includes(state.stage),
+    },
+    {
+      id: 'place-qr',
+      label: 'Place QR',
+      complete: state.hasQrPlacement,
+    },
+    {
+      id: 'staff-fallback-note',
+      label: 'Staff fallback note',
+      complete: state.hasStaffFallbackNote,
+    },
+  ];
 }
 
 async function generateGuestSession(environment: MerchantAdminElementEnvironment) {
