@@ -43,6 +43,7 @@ describe('merchant admin browser entry', () => {
       generateGuestUrl: async () => ({
         launchUrl: 'http://127.0.0.1:4173/?token=test-token',
       }),
+      now: () => '2026-09-01T10:15:00.000Z',
     });
 
     const MerchantAdminElement = registry.get('lechigo-merchant-admin');
@@ -87,11 +88,19 @@ describe('merchant admin browser entry', () => {
       root.querySelectorAll('[data-checklist-id]').at(2)?.getAttribute('data-complete'),
       'true',
     );
+    assert.match(
+      root.textContent ?? '',
+      /Verified QR placed at 2026-09-01T10:15:00.000Z/,
+    );
 
     getActionButtons(root)[5]?.click();
     assert.equal(
       root.querySelectorAll('[data-checklist-id]').at(3)?.getAttribute('data-complete'),
       'true',
+    );
+    assert.match(
+      root.textContent ?? '',
+      /Verified staff fallback note at 2026-09-01T10:15:00.000Z/,
     );
     assert.equal(getActionButtons(root)[3]?.disabled, false);
 
