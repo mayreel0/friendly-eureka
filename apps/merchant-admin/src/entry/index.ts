@@ -39,6 +39,12 @@ export type PilotReadinessApiState = {
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
 };
 
+export type PilotRouteRecordingApiState = {
+  stage: PilotRouteRecordingScreenStage;
+  routeId?: string;
+  launchUrl?: string;
+};
+
 export type MerchantAdminElement = {
   shadowRoot: ShadowRootLike | null;
   attachShadow(init: { mode: 'open' }): ShadowRootLike;
@@ -70,7 +76,9 @@ export type MerchantAdminElementEnvironment = {
   document: MerchantAdminDocument;
   generateGuestUrl?: () => Promise<{ launchUrl: string }>;
   loadReadiness?: () => Promise<PilotReadinessApiState>;
+  loadRouteRecording?: () => Promise<PilotRouteRecordingApiState>;
   saveReadiness?: (state: PilotReadinessApiState) => Promise<void>;
+  saveRouteRecording?: (state: PilotRouteRecordingApiState) => Promise<void>;
   guestOrigin?: string;
   now?: () => string;
 };
@@ -284,7 +292,7 @@ export function registerMerchantAdminElement(
 
     connectedCallback() {
       this.render();
-      void this.loadReadiness();
+      void this.loadPersistedState();
     }
 
     private render() {
@@ -318,6 +326,9 @@ export function registerMerchantAdminElement(
           stage: 'launch-ready',
           launchUrl: guestSession.launchUrl,
         };
+        this.render();
+        await savePilotRouteRecording(environment, this.state).catch(() => undefined);
+        return;
       } else {
         this.state = applyLocalPilotRouteRecordingAction(
           this.state,
@@ -329,18 +340,30 @@ export function registerMerchantAdminElement(
         if (isPilotReadinessAction(actionId)) {
           await savePilotReadiness(environment, this.state).catch(() => undefined);
         }
+
+        if (isPilotRouteRecordingAction(actionId)) {
+          await savePilotRouteRecording(environment, this.state).catch(() => undefined);
+        }
+        return;
+      }
+    }
+
+    private async loadPersistedState() {
+      const loadingFromState = this.state;
+      const [recording, readiness] = await Promise.all([
+        loadPilotRouteRecording(environment).catch(() =>
+          createInitialPilotRouteRecording(),
+        ),
+        loadPilotReadiness(environment).catch(() => createInitialPilotReadiness()),
+      ]);
+
+      if (this.state !== loadingFromState) {
         return;
       }
 
-      this.render();
-    }
-
-    private async loadReadiness() {
-      const readiness = await loadPilotReadiness(environment).catch(() =>
-        createInitialPilotReadiness(),
-      );
       this.state = {
         ...this.state,
+        ...recording,
         ...readiness,
       };
       this.render();
@@ -508,11 +531,33 @@ async function loadPilotReadiness(environment: MerchantAdminElementEnvironment) 
   return (await response.json()) as PilotReadinessApiState;
 }
 
+async function loadPilotRouteRecording(
+  environment: MerchantAdminElementEnvironment,
+) {
+  if (environment.loadRouteRecording) {
+    return environment.loadRouteRecording();
+  }
+
+  const response = await fetch('/api/dev/pilot-route-recording');
+
+  if (!response.ok) {
+    return createInitialPilotRouteRecording();
+  }
+
+  return (await response.json()) as PilotRouteRecordingApiState;
+}
+
 function createInitialPilotReadiness(): PilotReadinessApiState {
   return {
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
     qaResults: {},
+  };
+}
+
+function createInitialPilotRouteRecording(): PilotRouteRecordingApiState {
+  return {
+    stage: 'empty',
   };
 }
 
@@ -538,10 +583,40 @@ async function savePilotReadiness(
   });
 }
 
+async function savePilotRouteRecording(
+  environment: MerchantAdminElementEnvironment,
+  state: PilotRouteRecordingApiState,
+) {
+  const recording = {
+    stage: state.stage,
+    routeId: state.routeId,
+    launchUrl: state.launchUrl,
+  };
+
+  if (environment.saveRouteRecording) {
+    await environment.saveRouteRecording(recording);
+    return;
+  }
+
+  await fetch('/api/dev/pilot-route-recording', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(recording),
+  });
+}
+
 function isPilotReadinessAction(actionId: PilotRouteRecordingScreenActionId) {
   return (
     actionId === 'mark-qr-placed' ||
     actionId === 'mark-staff-fallback-ready'
+  );
+}
+
+function isPilotRouteRecordingAction(actionId: PilotRouteRecordingScreenActionId) {
+  return (
+    actionId === 'record-route' ||
+    actionId === 'mark-test-passed' ||
+    actionId === 'activate-route'
   );
 }
 
