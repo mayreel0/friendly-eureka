@@ -63,6 +63,76 @@ describe('guest WebXR dev server', () => {
       });
     }
   });
+
+  it('serves seeded pilot guest routes from the local API endpoint', async () => {
+    const server = createGuestWebxrDevServer();
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+
+    try {
+      const address = server.address();
+      assert.ok(isAddressInfo(address));
+
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const devSession = await fetch(`${baseUrl}/api/dev/guest-session`).then(
+        async (response) => ({
+          status: response.status,
+          contentType: response.headers.get('content-type'),
+          body: await response.json(),
+        }),
+      );
+
+      assert.equal(devSession.status, 200);
+      assert.match(devSession.contentType ?? '', /application\/json/);
+      assert.equal(devSession.body.ok, true);
+      assert.equal(typeof devSession.body.token, 'string');
+
+      const guestRoute = await fetch(
+        `${baseUrl}/api/guest/routes?token=${encodeURIComponent(devSession.body.token)}`,
+      ).then(async (response) => ({
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        body: await response.json(),
+      }));
+
+      assert.equal(guestRoute.status, 200);
+      assert.match(guestRoute.contentType ?? '', /application\/json/);
+      assert.equal(guestRoute.body.ok, true);
+      assert.equal(guestRoute.body.route.id, 'pilot-restroom-route');
+      assert.equal('password' in guestRoute.body.route, false);
+      assert.equal(guestRoute.body.route.anchors.at(0)?.id, 'entrance');
+      assert.equal(guestRoute.body.route.anchors.at(-1)?.id, 'restroom');
+
+      const invalidRoute = await fetch(
+        `${baseUrl}/api/guest/routes?token=invalid-token`,
+      ).then(async (response) => ({
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        body: await response.json(),
+      }));
+
+      assert.equal(invalidRoute.status, 401);
+      assert.match(invalidRoute.contentType ?? '', /application\/json/);
+      assert.deepEqual(invalidRoute.body, {
+        ok: false,
+        status: 401,
+        error: 'invalid-token',
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error: Error | undefined) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
+  });
 });
 
 function isAddressInfo(address: string | AddressInfo | null): address is AddressInfo {
