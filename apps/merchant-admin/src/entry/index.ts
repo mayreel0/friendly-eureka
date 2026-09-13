@@ -33,6 +33,12 @@ export type PilotQaResultNote = {
   recordedAt: string;
 };
 
+export type PilotReadinessApiState = {
+  hasQrPlacement: boolean;
+  hasStaffFallbackNote: boolean;
+  qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+};
+
 export type MerchantAdminElement = {
   shadowRoot: ShadowRootLike | null;
   attachShadow(init: { mode: 'open' }): ShadowRootLike;
@@ -63,6 +69,8 @@ export type MerchantAdminElementEnvironment = {
   };
   document: MerchantAdminDocument;
   generateGuestUrl?: () => Promise<{ launchUrl: string }>;
+  loadReadiness?: () => Promise<PilotReadinessApiState>;
+  saveReadiness?: (state: PilotReadinessApiState) => Promise<void>;
   guestOrigin?: string;
   now?: () => string;
 };
@@ -276,6 +284,7 @@ export function registerMerchantAdminElement(
 
     connectedCallback() {
       this.render();
+      void this.loadReadiness();
     }
 
     private render() {
@@ -315,8 +324,25 @@ export function registerMerchantAdminElement(
           actionId,
           environment.now,
         );
+        this.render();
+
+        if (isPilotReadinessAction(actionId)) {
+          await savePilotReadiness(environment, this.state).catch(() => undefined);
+        }
+        return;
       }
 
+      this.render();
+    }
+
+    private async loadReadiness() {
+      const readiness = await loadPilotReadiness(environment).catch(() =>
+        createInitialPilotReadiness(),
+      );
+      this.state = {
+        ...this.state,
+        ...readiness,
+      };
       this.render();
     }
   }
@@ -466,6 +492,57 @@ async function generateGuestSession(environment: MerchantAdminElementEnvironment
   }
 
   return (await response.json()) as { launchUrl: string };
+}
+
+async function loadPilotReadiness(environment: MerchantAdminElementEnvironment) {
+  if (environment.loadReadiness) {
+    return environment.loadReadiness();
+  }
+
+  const response = await fetch('/api/dev/pilot-readiness');
+
+  if (!response.ok) {
+    return createInitialPilotReadiness();
+  }
+
+  return (await response.json()) as PilotReadinessApiState;
+}
+
+function createInitialPilotReadiness(): PilotReadinessApiState {
+  return {
+    hasQrPlacement: false,
+    hasStaffFallbackNote: false,
+    qaResults: {},
+  };
+}
+
+async function savePilotReadiness(
+  environment: MerchantAdminElementEnvironment,
+  state: PilotReadinessApiState,
+) {
+  const readiness = {
+    hasQrPlacement: state.hasQrPlacement,
+    hasStaffFallbackNote: state.hasStaffFallbackNote,
+    qaResults: state.qaResults,
+  };
+
+  if (environment.saveReadiness) {
+    await environment.saveReadiness(readiness);
+    return;
+  }
+
+  await fetch('/api/dev/pilot-readiness', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(readiness),
+  });
+}
+
+function isPilotReadinessAction(actionId: PilotRouteRecordingScreenActionId) {
+  return (
+    actionId === 'mark-qr-placed' ||
+    actionId === 'mark-staff-fallback-ready'
+  );
 }
 
 function statusForPilotRouteRecordingStage(stage: PilotRouteRecordingScreenStage) {
