@@ -4,23 +4,15 @@ import { stripTypeScriptTypes } from 'node:module';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  activateRoute,
   createApiContext,
-  createQrSession,
   fetchGuestRoute,
-  issueQrCredential,
-  recordTestRun,
-  registerStore,
-  saveRouteDraft,
   type ApiContext,
-  type MerchantPrincipal,
 } from '../api/src/server.ts';
+import { recordPilotRestroomRoute } from '../merchant-admin/src/index.ts';
 
 const currentFile = fileURLToPath(import.meta.url);
 const appRoot = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = resolve(appRoot, '../..');
-const pilotStoreId = 'pilot-store';
-const pilotRouteId = 'pilot-restroom-route';
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -129,115 +121,13 @@ function createSeededPilotGuestApi(): SeededPilotGuestApi {
     signingSecret: 'local-dev-pilot-secret',
     now: () => '2026-09-01T10:00:00.000Z',
   });
-  const merchant: MerchantPrincipal = {
-    id: 'pilot-merchant',
-    storeIds: [pilotStoreId],
-    role: 'merchant',
-  };
-
-  registerStore(context, {
-    id: pilotStoreId,
-    merchantId: merchant.id,
-    name: 'Pilot Store',
-    restroomPassword: '2468',
-  });
-  requireApiOk(
-    saveRouteDraft(context, {
-      merchant,
-      storeId: pilotStoreId,
-      route: {
-        id: pilotRouteId,
-        version: 1,
-        recordedAt: '2026-09-01T09:00:00.000Z',
-        anchors: [
-          {
-            id: 'entrance',
-            label: 'Entrance',
-            floor: 1,
-            position: { x: 0, y: 0, z: 0 },
-            type: 'start',
-          },
-          {
-            id: 'hallway',
-            label: 'Main Hallway',
-            floor: 1,
-            position: { x: 4, y: 0, z: 1 },
-            type: 'landmark',
-          },
-          {
-            id: 'restroom',
-            label: 'Restroom',
-            floor: 1,
-            position: { x: 8, y: 0, z: 1 },
-            type: 'destination',
-          },
-        ],
-        segments: [
-          {
-            id: 'segment-1',
-            fromAnchorId: 'entrance',
-            toAnchorId: 'hallway',
-            instruction: 'Walk toward the main hallway.',
-            distanceMeters: 4,
-          },
-          {
-            id: 'segment-2',
-            fromAnchorId: 'hallway',
-            toAnchorId: 'restroom',
-            instruction: 'Turn right at Main Hallway and continue to the restroom.',
-            distanceMeters: 4.2,
-          },
-        ],
-      },
-    }),
-  );
-  requireApiOk(
-    recordTestRun(context, {
-      merchant,
-      storeId: pilotStoreId,
-      routeId: pilotRouteId,
-      testedAt: '2026-09-01T09:10:00.000Z',
-      result: 'pass',
-    }),
-  );
-  requireApiOk(
-    activateRoute(context, {
-      merchant,
-      storeId: pilotStoreId,
-      routeId: pilotRouteId,
-    }),
-  );
-  const qr = requireApiOk(
-    issueQrCredential(context, {
-      merchant,
-      storeId: pilotStoreId,
-      routeId: pilotRouteId,
-    }),
-  );
-  const session = requireApiOk(
-    createQrSession(context, {
-      storeId: pilotStoreId,
-      routeId: pilotRouteId,
-      qrKey: qr.qrKey,
-      clientKey: 'local-dev-browser',
-    }),
-  );
+  const recording = recordPilotRestroomRoute(context);
 
   return {
     context,
-    token: session.token,
-    expiresAt: session.expiresAt,
+    token: recording.token,
+    expiresAt: recording.expiresAt,
   };
-}
-
-function requireApiOk<T extends object>(
-  result: ({ ok: true } & T) | { ok: false; status: number; error: string },
-): { ok: true } & T {
-  if (!result.ok) {
-    throw new Error(`Failed to seed pilot guest API: ${result.error}`);
-  }
-
-  return result;
 }
 
 function writeJson(
