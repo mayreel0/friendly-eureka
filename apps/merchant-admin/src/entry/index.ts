@@ -17,8 +17,20 @@ export type PilotRouteRecordingScreenState = {
   stage: PilotRouteRecordingScreenStage;
   hasQrPlacement: boolean;
   hasStaffFallbackNote: boolean;
+  qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
   routeId?: string;
   launchUrl?: string;
+};
+
+export type PilotReadinessChecklistId =
+  | 'record-route'
+  | 'test-route'
+  | 'place-qr'
+  | 'staff-fallback-note';
+
+export type PilotQaResultNote = {
+  summary: string;
+  recordedAt: string;
 };
 
 export type MerchantAdminElement = {
@@ -52,6 +64,7 @@ export type MerchantAdminElementEnvironment = {
   document: MerchantAdminDocument;
   generateGuestUrl?: () => Promise<{ launchUrl: string }>;
   guestOrigin?: string;
+  now?: () => string;
 };
 
 export type MerchantAdminDomElement = {
@@ -75,6 +88,7 @@ export function createInitialPilotRouteRecordingScreenState(): PilotRouteRecordi
     stage: 'empty',
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
+    qaResults: {},
   };
 }
 
@@ -167,6 +181,14 @@ export function renderPilotRouteRecordingScreen(
       color: #6b7280;
     }
 
+    [data-qa-note] {
+      display: block;
+      margin-top: 4px;
+      color: #46515f;
+      font-size: 0.875rem;
+      font-weight: 400;
+    }
+
     a {
       overflow-wrap: anywhere;
       color: #0f766e;
@@ -204,6 +226,14 @@ export function renderPilotRouteRecordingScreen(
     checklistItem.setAttribute('data-checklist-id', item.id);
     checklistItem.setAttribute('data-complete', String(item.complete));
     checklistItem.textContent = `${item.complete ? 'Done' : 'Pending'}: ${item.label}`;
+
+    if (item.resultNote) {
+      const resultNote = document.createElement('span');
+      resultNote.setAttribute('data-qa-note', item.id);
+      resultNote.textContent = `${item.resultNote.summary} at ${item.resultNote.recordedAt}`;
+      checklistItem.appendChild(resultNote);
+    }
+
     checklist.appendChild(checklistItem);
   }
 
@@ -280,7 +310,11 @@ export function registerMerchantAdminElement(
           launchUrl: guestSession.launchUrl,
         };
       } else {
-        this.state = applyLocalPilotRouteRecordingAction(this.state, actionId);
+        this.state = applyLocalPilotRouteRecordingAction(
+          this.state,
+          actionId,
+          environment.now,
+        );
       }
 
       this.render();
@@ -344,6 +378,7 @@ function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
 function applyLocalPilotRouteRecordingAction(
   state: PilotRouteRecordingScreenState,
   actionId: Exclude<PilotRouteRecordingScreenActionId, 'generate-guest-url'>,
+  now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
   if (actionId === 'record-route') {
     return {
@@ -358,11 +393,31 @@ function applyLocalPilotRouteRecordingAction(
   }
 
   if (actionId === 'mark-qr-placed') {
-    return { ...state, hasQrPlacement: true };
+    return {
+      ...state,
+      hasQrPlacement: true,
+      qaResults: {
+        ...state.qaResults,
+        'place-qr': {
+          summary: 'Verified QR placed',
+          recordedAt: now(),
+        },
+      },
+    };
   }
 
   if (actionId === 'mark-staff-fallback-ready') {
-    return { ...state, hasStaffFallbackNote: true };
+    return {
+      ...state,
+      hasStaffFallbackNote: true,
+      qaResults: {
+        ...state.qaResults,
+        'staff-fallback-note': {
+          summary: 'Verified staff fallback note',
+          recordedAt: now(),
+        },
+      },
+    };
   }
 
   return { ...state, stage: 'active' };
@@ -384,13 +439,19 @@ function createPilotReadinessChecklist(state: PilotRouteRecordingScreenState) {
       id: 'place-qr',
       label: 'Place QR',
       complete: state.hasQrPlacement,
+      resultNote: state.qaResults['place-qr'],
     },
     {
       id: 'staff-fallback-note',
       label: 'Staff fallback note',
       complete: state.hasStaffFallbackNote,
+      resultNote: state.qaResults['staff-fallback-note'],
     },
   ];
+}
+
+function defaultNow() {
+  return '2026-09-01T10:00:00.000Z';
 }
 
 async function generateGuestSession(environment: MerchantAdminElementEnvironment) {
