@@ -1,10 +1,14 @@
 import { readFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApiContext } from '../api/src/server.ts';
 import { recordPilotRestroomRoute } from './src/index.ts';
+import type {
+  PilotQaResultNote,
+  PilotReadinessChecklistId,
+} from './src/entry/index.ts';
 
 const currentFile = fileURLToPath(import.meta.url);
 const appRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -24,10 +28,37 @@ export function createMerchantAdminDevServer(
   const resolvedAppRoot = resolve(options.appRoot ?? appRoot);
   const resolvedRepoRoot = resolve(options.repoRoot ?? repoRoot);
   const guestOrigin = options.guestOrigin ?? 'http://127.0.0.1:4173';
+  let readiness = createInitialPilotReadiness();
 
   return createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+
+      if (requestUrl.pathname === '/api/dev/pilot-readiness') {
+        if (request.method === 'GET') {
+          writeJson(response, 200, {
+            ok: true,
+            ...readiness,
+          });
+          return;
+        }
+
+        if (request.method === 'POST') {
+          readiness = parsePilotReadinessUpdate(await readJson(request));
+          writeJson(response, 200, {
+            ok: true,
+            ...readiness,
+          });
+          return;
+        }
+
+        writeJson(response, 405, {
+          ok: false,
+          status: 405,
+          error: 'method-not-allowed',
+        });
+        return;
+      }
 
       if (requestUrl.pathname === '/api/dev/pilot-route-session') {
         const recording = recordPilotRestroomRoute(
@@ -70,6 +101,75 @@ export function createMerchantAdminDevServer(
       response.end('Not found');
     }
   });
+}
+
+type PilotReadinessState = {
+  hasQrPlacement: boolean;
+  hasStaffFallbackNote: boolean;
+  qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+};
+
+function createInitialPilotReadiness(): PilotReadinessState {
+  return {
+    hasQrPlacement: false,
+    hasStaffFallbackNote: false,
+    qaResults: {},
+  };
+}
+
+function parsePilotReadinessUpdate(value: unknown): PilotReadinessState {
+  if (!isRecord(value)) {
+    return createInitialPilotReadiness();
+  }
+
+  return {
+    hasQrPlacement: value.hasQrPlacement === true,
+    hasStaffFallbackNote: value.hasStaffFallbackNote === true,
+    qaResults: parseQaResults(value.qaResults),
+  };
+}
+
+function parseQaResults(
+  value: unknown,
+): Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    'place-qr': parseQaResultNote(value['place-qr']),
+    'staff-fallback-note': parseQaResultNote(value['staff-fallback-note']),
+  };
+}
+
+function parseQaResultNote(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  if (typeof value.summary !== 'string' || typeof value.recordedAt !== 'string') {
+    return undefined;
+  }
+
+  return {
+    summary: value.summary,
+    recordedAt: value.recordedAt,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+async function readJson(request: IncomingMessage) {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  const body = Buffer.concat(chunks).toString('utf8');
+  return body ? JSON.parse(body) : undefined;
 }
 
 function writeJson(

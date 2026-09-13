@@ -34,6 +34,72 @@ describe('merchant admin dev server', () => {
       assert.equal(session.status, 200);
       assert.match(session.headers.get('content-type') ?? '', /application\/json/);
       assert.match(body.launchUrl ?? '', /^http:\/\/127\.0\.0\.1:4173\/\?token=/);
+
+      const initialReadiness = await fetch(
+        `${baseUrl}/api/dev/pilot-readiness`,
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as {
+          ok?: boolean;
+          hasQrPlacement?: boolean;
+          hasStaffFallbackNote?: boolean;
+          qaResults?: Record<string, unknown>;
+        },
+      }));
+
+      assert.equal(initialReadiness.status, 200);
+      assert.equal(initialReadiness.body.ok, true);
+      assert.equal(initialReadiness.body.hasQrPlacement, false);
+      assert.equal(initialReadiness.body.hasStaffFallbackNote, false);
+
+      const savedReadiness = await fetch(`${baseUrl}/api/dev/pilot-readiness`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          hasQrPlacement: true,
+          hasStaffFallbackNote: true,
+          qaResults: {
+            'place-qr': {
+              summary: 'Verified QR placed',
+              recordedAt: '2026-09-01T10:15:00.000Z',
+            },
+            'staff-fallback-note': {
+              summary: 'Verified staff fallback note',
+              recordedAt: '2026-09-01T10:16:00.000Z',
+            },
+          },
+        }),
+      }).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as {
+          ok?: boolean;
+          hasQrPlacement?: boolean;
+          hasStaffFallbackNote?: boolean;
+          qaResults?: {
+            'place-qr'?: { recordedAt?: string };
+            'staff-fallback-note'?: { recordedAt?: string };
+          };
+        },
+      }));
+
+      assert.equal(savedReadiness.status, 200);
+      assert.equal(savedReadiness.body.ok, true);
+      assert.equal(savedReadiness.body.hasQrPlacement, true);
+      assert.equal(savedReadiness.body.hasStaffFallbackNote, true);
+      assert.equal(
+        savedReadiness.body.qaResults?.['place-qr']?.recordedAt,
+        '2026-09-01T10:15:00.000Z',
+      );
+
+      const reloadedReadiness = await fetch(
+        `${baseUrl}/api/dev/pilot-readiness`,
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as typeof savedReadiness.body,
+      }));
+
+      assert.equal(reloadedReadiness.status, 200);
+      assert.deepEqual(reloadedReadiness.body, savedReadiness.body);
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error: Error | undefined) => {

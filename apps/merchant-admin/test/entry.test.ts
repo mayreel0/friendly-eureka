@@ -109,6 +109,70 @@ describe('merchant admin browser entry', () => {
     assert.match(root.textContent ?? '', /Guest URL ready/);
     assert.match(root.textContent ?? '', /\/\?token=/);
   });
+
+  it('loads and saves pilot QA readiness through the environment API', async () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+    const saves: unknown[] = [];
+
+    registerMerchantAdminElement({
+      customElements: registry,
+      HTMLElement: TestMerchantHTMLElement,
+      document,
+      loadReadiness: async () => ({
+        hasQrPlacement: true,
+        hasStaffFallbackNote: false,
+        qaResults: {
+          'place-qr': {
+            summary: 'Verified QR placed',
+            recordedAt: '2026-09-01T10:10:00.000Z',
+          },
+        },
+      }),
+      saveReadiness: async (state) => {
+        saves.push(state);
+      },
+      now: () => '2026-09-01T10:20:00.000Z',
+    });
+
+    const MerchantAdminElement = registry.get('lechigo-merchant-admin');
+    assert.ok(MerchantAdminElement);
+
+    const element = new MerchantAdminElement() as unknown as TestMerchantHTMLElement & {
+      connectedCallback(): void;
+    };
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const root = element.shadowRoot;
+    assert.ok(root);
+    assert.match(
+      root.textContent ?? '',
+      /Verified QR placed at 2026-09-01T10:10:00.000Z/,
+    );
+
+    getActionButtons(root)[0]?.click();
+    getActionButtons(root)[1]?.click();
+    getActionButtons(root)[2]?.click();
+    getActionButtons(root)[5]?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(saves.length, 1);
+    assert.deepEqual(saves.at(0), {
+      hasQrPlacement: true,
+      hasStaffFallbackNote: true,
+      qaResults: {
+        'place-qr': {
+          summary: 'Verified QR placed',
+          recordedAt: '2026-09-01T10:10:00.000Z',
+        },
+        'staff-fallback-note': {
+          summary: 'Verified staff fallback note',
+          recordedAt: '2026-09-01T10:20:00.000Z',
+        },
+      },
+    });
+  });
 });
 
 function createTestDocument(): MerchantAdminDocument {
