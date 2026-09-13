@@ -3,6 +3,9 @@ import { describe, it } from 'node:test';
 
 import {
   buildActivationChecklist,
+  createPilotRouteRecordingUiState,
+  applyPilotRouteRecordingUiAction,
+  renderPilotRouteRecordingUi,
   recordPilotRestroomRoute,
   merchantAdminSurface,
   resolveMerchantRouteActions,
@@ -96,5 +99,55 @@ describe('merchant admin workflow surface', () => {
     assert.equal(guestRoute.route.id, 'pilot-restroom-route');
     assert.equal(guestRoute.route.totalDistanceMeters, 8.2);
     assert.equal('password' in guestRoute.route, false);
+  });
+
+  it('surfaces the pilot recording steps as actionable UI state', () => {
+    const api = createApiContext({
+      signingSecret: 'local-dev-pilot-secret',
+      now: () => '2026-09-01T10:00:00.000Z',
+    });
+    let state = createPilotRouteRecordingUiState(api);
+
+    assert.deepEqual(renderPilotRouteRecordingUi(state), {
+      screen: 'pilot-route-recording',
+      stage: 'empty',
+      title: 'Pilot route recording',
+      status: 'Route not recorded',
+      routeId: undefined,
+      launchUrl: undefined,
+      actions: [
+        { id: 'record-route', label: 'Record route', enabled: true },
+        { id: 'mark-test-passed', label: 'Mark test passed', enabled: false },
+        { id: 'activate-route', label: 'Activate route', enabled: false },
+        { id: 'generate-guest-url', label: 'Generate guest URL', enabled: false },
+      ],
+    });
+
+    state = applyPilotRouteRecordingUiAction(state, 'record-route');
+    assert.equal(renderPilotRouteRecordingUi(state).stage, 'recorded');
+    assert.equal(renderPilotRouteRecordingUi(state).actions.at(1)?.enabled, true);
+
+    state = applyPilotRouteRecordingUiAction(state, 'mark-test-passed');
+    assert.equal(renderPilotRouteRecordingUi(state).stage, 'tested');
+    assert.equal(renderPilotRouteRecordingUi(state).actions.at(2)?.enabled, true);
+
+    state = applyPilotRouteRecordingUiAction(state, 'activate-route');
+    assert.equal(renderPilotRouteRecordingUi(state).stage, 'active');
+    assert.equal(renderPilotRouteRecordingUi(state).actions.at(3)?.enabled, true);
+
+    state = applyPilotRouteRecordingUiAction(state, 'generate-guest-url');
+    const view = renderPilotRouteRecordingUi(state);
+
+    assert.equal(view.stage, 'launch-ready');
+    assert.equal(view.status, 'Guest URL ready');
+    assert.equal(view.routeId, 'pilot-restroom-route');
+    assert.match(view.launchUrl ?? '', /^\/\?token=.+/);
+
+    const guestRoute = fetchGuestRoute(api, {
+      token: view.launchUrl?.replace('/?token=', '') ?? '',
+    });
+
+    assert.ok(guestRoute.ok);
+    assert.equal(guestRoute.route.id, 'pilot-restroom-route');
   });
 });
