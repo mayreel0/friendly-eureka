@@ -84,6 +84,12 @@ export function createPilotRouteRecordingView(
   const checklist = createPilotReadinessChecklist(state);
   const isReadyToLaunch = checklist.every((item) => item.complete);
   const nextTarget = deriveNextPilotImplementationTarget(state);
+  const openFollowUps = state.followUps.filter(
+    (followUp) => followUp.status === 'open',
+  );
+  const completedFollowUps = state.followUps.filter(
+    (followUp) => followUp.status === 'completed',
+  );
 
   return {
     stage: state.stage,
@@ -93,6 +99,8 @@ export function createPilotRouteRecordingView(
     launchUrl: state.launchUrl,
     nextTarget,
     followUps: state.followUps,
+    openFollowUps,
+    completedFollowUps,
     checklist,
     actions: [
       {
@@ -189,6 +197,15 @@ export function recordPilotFollowUp(
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
   const target = deriveNextPilotImplementationTarget(state);
+  const hasOpenFollowUpForTarget = state.followUps.some(
+    (followUp) =>
+      followUp.status === 'open' && followUp.targetId === target.id,
+  );
+
+  if (hasOpenFollowUpForTarget) {
+    return state;
+  }
+
   const followUp: PilotFollowUpAction = {
     id: `follow-up-${state.followUps.length + 1}`,
     targetId: target.id,

@@ -409,7 +409,7 @@ describe('merchant admin browser entry', () => {
     });
   });
 
-  it('records a follow-up action from the current next target', async () => {
+  it('records and completes follow-up actions from the current next target', async () => {
     const registry = createTestCustomElementRegistry();
     const document = createTestDocument();
     const saves: unknown[] = [];
@@ -453,8 +453,10 @@ describe('merchant admin browser entry', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.match(root.textContent ?? '', /Open follow-ups/);
+    assert.match(root.textContent ?? '', /Completed follow-ups/);
     assert.match(root.textContent ?? '', /Complete pilot readiness/);
     assert.match(root.textContent ?? '', /Mark done/);
+    assert.equal(root.querySelectorAll('[data-follow-up-status]').length, 1);
     assert.deepEqual(saves.at(0), {
       recording: {
         stage: 'active',
@@ -485,10 +487,21 @@ describe('merchant admin browser entry', () => {
       ],
     });
 
+    getActionButton(root, 'record-follow-up')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(root.querySelectorAll('[data-follow-up-status]').length, 1);
+    assert.equal(saves.length, 2);
+    assert.equal(
+      (saves.at(1) as { followUps?: { status?: string }[] }).followUps?.length,
+      1,
+    );
+
     getActionButton(root, 'complete-follow-up')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.match(root.textContent ?? '', /completed/);
+    assert.doesNotMatch(root.textContent ?? '', /Mark done/);
     assert.equal(
       root
         .querySelectorAll('[data-follow-up-status]')
@@ -496,7 +509,10 @@ describe('merchant admin browser entry', () => {
         ?.getAttribute('data-follow-up-status'),
       'completed',
     );
-    assert.deepEqual((saves.at(1) as { followUps?: { status?: string }[] }).followUps?.[0]?.status, 'completed');
+    assert.deepEqual(
+      (saves.at(2) as { followUps?: { status?: string }[] }).followUps?.[0]?.status,
+      'completed',
+    );
   });
 });
 
