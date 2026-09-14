@@ -87,7 +87,7 @@ export function createPilotRouteRecordingView(
 
   return {
     stage: state.stage,
-    title: 'Pilot route recording',
+    title: 'Merchant pilot dashboard',
     status: statusForPilotRouteRecordingStage(state.stage),
     routeId: state.routeId,
     launchUrl: state.launchUrl,

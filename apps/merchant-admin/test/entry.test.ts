@@ -115,11 +115,16 @@ describe('merchant admin browser entry', () => {
     const screen = renderPilotRouteRecordingScreen(document, state);
 
     assert.equal(screen.getAttribute('data-screen'), 'pilot-route-recording');
-    assert.match(screen.textContent ?? '', /Pilot route recording/);
+    assert.equal(screen.getAttribute('data-dashboard'), 'merchant-pilot');
+    assert.match(screen.textContent ?? '', /Merchant pilot dashboard/);
+    assert.match(screen.textContent ?? '', /Route status/);
     assert.match(screen.textContent ?? '', /Route not recorded/);
     assert.match(screen.textContent ?? '', /Next target/);
     assert.match(screen.textContent ?? '', /Record pilot route/);
     assert.match(screen.textContent ?? '', /Pilot readiness/);
+    assert.match(screen.textContent ?? '', /Guest launch/);
+    assert.match(screen.textContent ?? '', /Open follow-ups/);
+    assert.equal(screen.querySelectorAll('[data-dashboard-panel]').length, 6);
     assert.equal(screen.querySelectorAll('[data-action-id]').length, 7);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
     assert.match(screen.textContent ?? '', /Pending: Record route/);
