@@ -125,7 +125,7 @@ describe('merchant admin browser entry', () => {
     assert.match(screen.textContent ?? '', /Guest launch/);
     assert.match(screen.textContent ?? '', /Open follow-ups/);
     assert.equal(screen.querySelectorAll('[data-dashboard-panel]').length, 6);
-    assert.equal(screen.querySelectorAll('[data-action-id]').length, 7);
+    assert.equal(screen.querySelectorAll('[data-action-id]').length, 8);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
     assert.match(screen.textContent ?? '', /Pending: Record route/);
     assert.match(screen.textContent ?? '', /Pending: Place QR/);
@@ -167,7 +167,7 @@ describe('merchant admin browser entry', () => {
       'false',
     );
 
-    getActionButtons(root)[0]?.click();
+    getActionButton(root, 'record-route')?.click();
     assert.match(root.textContent ?? '', /Route recorded/);
     assert.match(root.textContent ?? '', /Done: Record route/);
     assert.equal(
@@ -175,18 +175,18 @@ describe('merchant admin browser entry', () => {
       'true',
     );
 
-    getActionButtons(root)[1]?.click();
+    getActionButton(root, 'mark-test-passed')?.click();
     assert.match(root.textContent ?? '', /Test passed/);
     assert.equal(
       root.querySelectorAll('[data-checklist-id]').at(1)?.getAttribute('data-complete'),
       'true',
     );
 
-    getActionButtons(root)[2]?.click();
+    getActionButton(root, 'activate-route')?.click();
     assert.match(root.textContent ?? '', /Route active/);
-    assert.equal(getActionButtons(root)[3]?.disabled, true);
+    assert.equal(getActionButton(root, 'generate-guest-url')?.disabled, true);
 
-    getActionButtons(root)[4]?.click();
+    getActionButton(root, 'mark-qr-placed')?.click();
     assert.equal(
       root.querySelectorAll('[data-checklist-id]').at(2)?.getAttribute('data-complete'),
       'true',
@@ -196,7 +196,7 @@ describe('merchant admin browser entry', () => {
       /Verified QR placed at 2026-09-01T10:15:00.000Z/,
     );
 
-    getActionButtons(root)[5]?.click();
+    getActionButton(root, 'mark-staff-fallback-ready')?.click();
     assert.equal(
       root.querySelectorAll('[data-checklist-id]').at(3)?.getAttribute('data-complete'),
       'true',
@@ -205,9 +205,9 @@ describe('merchant admin browser entry', () => {
       root.textContent ?? '',
       /Verified staff fallback note at 2026-09-01T10:15:00.000Z/,
     );
-    assert.equal(getActionButtons(root)[3]?.disabled, false);
+    assert.equal(getActionButton(root, 'generate-guest-url')?.disabled, false);
 
-    getActionButtons(root)[3]?.click();
+    getActionButton(root, 'generate-guest-url')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.match(root.textContent ?? '', /Guest URL ready/);
     assert.match(root.textContent ?? '', /\/\?token=/);
@@ -254,10 +254,10 @@ describe('merchant admin browser entry', () => {
       /Verified QR placed at 2026-09-01T10:10:00.000Z/,
     );
 
-    getActionButtons(root)[0]?.click();
-    getActionButtons(root)[1]?.click();
-    getActionButtons(root)[2]?.click();
-    getActionButtons(root)[5]?.click();
+    getActionButton(root, 'record-route')?.click();
+    getActionButton(root, 'mark-test-passed')?.click();
+    getActionButton(root, 'activate-route')?.click();
+    getActionButton(root, 'mark-staff-fallback-ready')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.equal(saves.length, 1);
@@ -313,7 +313,7 @@ describe('merchant admin browser entry', () => {
     assert.match(root.textContent ?? '', /Test passed/);
     assert.match(root.textContent ?? '', /Route: pilot-restroom-route/);
 
-    getActionButtons(root)[2]?.click();
+    getActionButton(root, 'activate-route')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.deepEqual(saves.at(0), {
@@ -322,9 +322,9 @@ describe('merchant admin browser entry', () => {
       launchUrl: undefined,
     });
 
-    getActionButtons(root)[4]?.click();
-    getActionButtons(root)[5]?.click();
-    getActionButtons(root)[3]?.click();
+    getActionButton(root, 'mark-qr-placed')?.click();
+    getActionButton(root, 'mark-staff-fallback-ready')?.click();
+    getActionButton(root, 'generate-guest-url')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.deepEqual(saves.at(-1), {
@@ -382,7 +382,7 @@ describe('merchant admin browser entry', () => {
       /Verified QR placed at 2026-09-01T10:10:00.000Z/,
     );
 
-    getActionButtons(root)[5]?.click();
+    getActionButton(root, 'mark-staff-fallback-ready')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.deepEqual(saves.at(0), {

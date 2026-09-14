@@ -212,8 +212,27 @@ export function renderPilotRouteRecordingScreen(
   target.setAttribute('data-next-target-id', view.nextTarget.id);
   target.textContent = `${view.nextTarget.label}: ${view.nextTarget.detail}`;
 
+  const primaryActions = document.createElement('div');
+  primaryActions.setAttribute('data-primary-actions', 'next-target');
+
+  for (const actionId of view.primaryActions) {
+    const action = view.actions.find((candidate) => candidate.id === actionId);
+
+    if (!action) {
+      continue;
+    }
+
+    const button = document.createElement('button');
+    button.setAttribute('type', 'button');
+    button.setAttribute('data-action-id', action.id);
+    button.setAttribute('data-primary-action-id', action.id);
+    button.textContent = action.label;
+    button.disabled = !action.enabled;
+    primaryActions.appendChild(button);
+  }
+
   const targetPanel = createDashboardPanel(document, 'next-target', 'Next target');
-  targetPanel.append(target);
+  targetPanel.append(target, primaryActions);
 
   const followUpButton = document.createElement('button');
   followUpButton.setAttribute('type', 'button');
