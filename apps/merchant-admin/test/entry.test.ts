@@ -119,12 +119,15 @@ describe('merchant admin browser entry', () => {
     assert.match(screen.textContent ?? '', /Merchant pilot dashboard/);
     assert.match(screen.textContent ?? '', /Route status/);
     assert.match(screen.textContent ?? '', /Route not recorded/);
+    assert.match(screen.textContent ?? '', /0 of 6 pilot steps complete/);
+    assert.match(screen.textContent ?? '', /Next: Record pilot route/);
     assert.match(screen.textContent ?? '', /Next target/);
     assert.match(screen.textContent ?? '', /Record pilot route/);
     assert.match(screen.textContent ?? '', /Pilot readiness/);
     assert.match(screen.textContent ?? '', /Guest launch/);
     assert.match(screen.textContent ?? '', /Open follow-ups/);
     assert.equal(screen.querySelectorAll('[data-dashboard-panel]').length, 6);
+    assert.equal(screen.querySelectorAll('[data-progress-summary]').length, 1);
     assert.equal(screen.querySelectorAll('[data-action-id]').length, 8);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
     assert.match(screen.textContent ?? '', /Pending: Record route/);
@@ -161,6 +164,7 @@ describe('merchant admin browser entry', () => {
     assert.ok(root);
 
     assert.match(root.textContent ?? '', /Route not recorded/);
+    assert.match(root.textContent ?? '', /0 of 6 pilot steps complete/);
     assert.match(root.textContent ?? '', /Pending: Record route/);
     assert.equal(
       root.querySelectorAll('[data-checklist-id]').at(0)?.getAttribute('data-complete'),
@@ -169,6 +173,8 @@ describe('merchant admin browser entry', () => {
 
     getActionButton(root, 'record-route')?.click();
     assert.match(root.textContent ?? '', /Route recorded/);
+    assert.match(root.textContent ?? '', /1 of 6 pilot steps complete/);
+    assert.match(root.textContent ?? '', /Next: Run route test/);
     assert.match(root.textContent ?? '', /Done: Record route/);
     assert.equal(
       root.querySelectorAll('[data-checklist-id]').at(0)?.getAttribute('data-complete'),
@@ -184,6 +190,7 @@ describe('merchant admin browser entry', () => {
 
     getActionButton(root, 'activate-route')?.click();
     assert.match(root.textContent ?? '', /Route active/);
+    assert.match(root.textContent ?? '', /3 of 6 pilot steps complete/);
     assert.equal(getActionButton(root, 'generate-guest-url')?.disabled, true);
 
     getActionButton(root, 'mark-qr-placed')?.click();
@@ -205,11 +212,14 @@ describe('merchant admin browser entry', () => {
       root.textContent ?? '',
       /Verified staff fallback note at 2026-09-01T10:15:00.000Z/,
     );
+    assert.match(root.textContent ?? '', /5 of 6 pilot steps complete/);
+    assert.match(root.textContent ?? '', /Next: Generate guest URL/);
     assert.equal(getActionButton(root, 'generate-guest-url')?.disabled, false);
 
     getActionButton(root, 'generate-guest-url')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.match(root.textContent ?? '', /Guest URL ready/);
+    assert.match(root.textContent ?? '', /6 of 6 pilot steps complete/);
     assert.match(root.textContent ?? '', /\/\?token=/);
   });
 
