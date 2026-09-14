@@ -5,6 +5,6 @@
   "scripts": {
     "dev": "node dev-server.ts",
     "test": "node --test \"test/**/*.test.ts\"",
-    "typecheck": "node --check src/entry/index.ts && node --check src/entry/bootstrap.ts && node --check dev-server.ts"
+    "typecheck": "node --check src/entry/index.ts && node --check src/entry/bootstrap.ts && node --check src/entry/visual-smoke.ts && node --check dev-server.ts"
   }
 }

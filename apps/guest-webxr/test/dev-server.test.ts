@@ -17,10 +17,16 @@ describe('guest WebXR dev server', () => {
       assert.ok(isAddressInfo(address));
 
       const baseUrl = `http://127.0.0.1:${address.port}`;
-      const [html, bootstrap, entry, routeCore] = await Promise.all([
+      const [html, visualSmokeHtml, bootstrap, entry, visualSmoke, routeCore] =
+        await Promise.all([
         fetch(`${baseUrl}/`).then(async (response) => ({
           contentType: response.headers.get('content-type'),
           body: await response.text(),
+        })),
+        fetch(`${baseUrl}/visual-smoke.html`).then(async (response) => ({
+          contentType: response.headers.get('content-type'),
+          body: await response.text(),
+          status: response.status,
         })),
         fetch(`${baseUrl}/src/entry/bootstrap.ts`).then(async (response) => ({
           contentType: response.headers.get('content-type'),
@@ -29,6 +35,11 @@ describe('guest WebXR dev server', () => {
         fetch(`${baseUrl}/src/entry/index.ts`).then(async (response) => ({
           contentType: response.headers.get('content-type'),
           body: await response.text(),
+        })),
+        fetch(`${baseUrl}/src/entry/visual-smoke.ts`).then(async (response) => ({
+          contentType: response.headers.get('content-type'),
+          body: await response.text(),
+          status: response.status,
         })),
         fetch(`${baseUrl}/packages/route-core/src/index.ts`).then(async (response) => ({
           contentType: response.headers.get('content-type'),
@@ -40,12 +51,20 @@ describe('guest WebXR dev server', () => {
       assert.match(html.contentType ?? '', /text\/html/);
       assert.match(html.body, /<lechigo-guest-entry data-guest-entry>/);
       assert.match(html.body, /src="\.\/src\/entry\/bootstrap\.ts"/);
+      assert.equal(visualSmokeHtml.status, 200);
+      assert.match(visualSmokeHtml.contentType ?? '', /text\/html/);
+      assert.match(visualSmokeHtml.body, /data-visual-smoke-root/);
+      assert.match(visualSmokeHtml.body, /src="\.\/src\/entry\/visual-smoke\.ts"/);
       assert.match(bootstrap.contentType ?? '', /application\/javascript/);
       assert.doesNotMatch(bootstrap.body, /export type/);
       assert.match(bootstrap.body, /bootstrapGuestEntry/);
       assert.match(entry.contentType ?? '', /application\/javascript/);
       assert.doesNotMatch(entry.body, /export type/);
       assert.match(entry.body, /registerGuestEntryElement/);
+      assert.equal(visualSmoke.status, 200);
+      assert.match(visualSmoke.contentType ?? '', /application\/javascript/);
+      assert.doesNotMatch(visualSmoke.body, /export type/);
+      assert.match(visualSmoke.body, /runGuestFallbackVisualSmoke/);
       assert.equal(routeCore.status, 200);
       assert.match(routeCore.contentType ?? '', /application\/javascript/);
       assert.doesNotMatch(routeCore.body, /export type/);
