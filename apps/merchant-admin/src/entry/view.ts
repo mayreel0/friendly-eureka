@@ -226,7 +226,18 @@ export function renderPilotRouteRecordingScreen(
   for (const followUp of view.followUps) {
     const followUpItem = document.createElement('li');
     followUpItem.setAttribute('data-follow-up-id', followUp.id);
+    followUpItem.setAttribute('data-follow-up-status', followUp.status);
     followUpItem.textContent = `${followUp.targetLabel} (${followUp.status}) at ${followUp.createdAt}`;
+
+    if (followUp.status === 'open') {
+      const completeButton = document.createElement('button');
+      completeButton.setAttribute('type', 'button');
+      completeButton.setAttribute('data-action-id', 'complete-follow-up');
+      completeButton.setAttribute('data-follow-up-id', followUp.id);
+      completeButton.textContent = 'Mark done';
+      followUpItem.appendChild(completeButton);
+    }
+
     followUps.appendChild(followUpItem);
   }
 

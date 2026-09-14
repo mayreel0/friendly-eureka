@@ -12,7 +12,8 @@ export type PilotRouteRecordingScreenActionId =
   | 'mark-qr-placed'
   | 'mark-staff-fallback-ready'
   | 'generate-guest-url'
-  | 'record-follow-up';
+  | 'record-follow-up'
+  | 'complete-follow-up';
 
 export type PilotRouteRecordingScreenState = {
   stage: PilotRouteRecordingScreenStage;
