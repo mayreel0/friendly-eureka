@@ -5,9 +5,11 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApiContext } from '../api/src/server.ts';
 import { recordPilotRestroomRoute } from './src/index.ts';
+import { deriveNextPilotImplementationTarget } from './src/entry/index.ts';
 import type {
   PilotQaResultNote,
   PilotReadinessChecklistId,
+  PilotRouteRecordingScreenState,
   PilotRouteRecordingScreenStage,
 } from './src/entry/index.ts';
 
@@ -40,6 +42,9 @@ export function createMerchantAdminDevServer(
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
+            nextTarget: deriveNextPilotImplementationTarget(
+              toPilotRouteRecordingScreenState(pilotState),
+            ),
           });
           return;
         }
@@ -49,6 +54,9 @@ export function createMerchantAdminDevServer(
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
+            nextTarget: deriveNextPilotImplementationTarget(
+              toPilotRouteRecordingScreenState(pilotState),
+            ),
           });
           return;
         }
@@ -178,6 +186,15 @@ type PilotState = {
   recording: PilotRouteRecordingState;
   readiness: PilotReadinessState;
 };
+
+function toPilotRouteRecordingScreenState(
+  state: PilotState,
+): PilotRouteRecordingScreenState {
+  return {
+    ...state.recording,
+    ...state.readiness,
+  };
+}
 
 function createInitialPilotState(): PilotState {
   return {

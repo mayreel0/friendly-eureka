@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   createInitialPilotRouteRecordingScreenState,
+  deriveNextPilotImplementationTarget,
   registerMerchantAdminElement,
   renderPilotRouteRecordingScreen,
   type MerchantAdminDocument,
@@ -12,6 +13,94 @@ import {
 } from '../src/entry/index.ts';
 
 describe('merchant admin browser entry', () => {
+  it('derives the next pilot implementation target from route and QA state', () => {
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'empty',
+        hasQrPlacement: false,
+        hasStaffFallbackNote: false,
+        qaResults: {},
+      }).id,
+      'record-pilot-route',
+    );
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'recorded',
+        routeId: 'pilot-restroom-route',
+        hasQrPlacement: false,
+        hasStaffFallbackNote: false,
+        qaResults: {},
+      }).id,
+      'run-route-test',
+    );
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'tested',
+        routeId: 'pilot-restroom-route',
+        hasQrPlacement: false,
+        hasStaffFallbackNote: false,
+        qaResults: {},
+      }).id,
+      'activate-pilot-route',
+    );
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'active',
+        routeId: 'pilot-restroom-route',
+        hasQrPlacement: false,
+        hasStaffFallbackNote: true,
+        qaResults: {},
+      }).id,
+      'complete-pilot-readiness',
+    );
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'active',
+        routeId: 'pilot-restroom-route',
+        hasQrPlacement: true,
+        hasStaffFallbackNote: true,
+        qaResults: {},
+      }).id,
+      'generate-guest-url',
+    );
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'launch-ready',
+        routeId: 'pilot-restroom-route',
+        launchUrl: 'http://127.0.0.1:4173/?token=test-token',
+        hasQrPlacement: true,
+        hasStaffFallbackNote: true,
+        qaResults: {
+          'place-qr': {
+            summary: 'Verified QR placed',
+            recordedAt: '2026-09-01T10:10:00.000Z',
+          },
+        },
+      }).id,
+      'record-qa-evidence',
+    );
+    assert.equal(
+      deriveNextPilotImplementationTarget({
+        stage: 'launch-ready',
+        routeId: 'pilot-restroom-route',
+        launchUrl: 'http://127.0.0.1:4173/?token=test-token',
+        hasQrPlacement: true,
+        hasStaffFallbackNote: true,
+        qaResults: {
+          'place-qr': {
+            summary: 'Verified QR placed',
+            recordedAt: '2026-09-01T10:10:00.000Z',
+          },
+          'staff-fallback-note': {
+            summary: 'Verified staff fallback note',
+            recordedAt: '2026-09-01T10:20:00.000Z',
+          },
+        },
+      }).id,
+      'run-guest-pilot-qa',
+    );
+  });
+
   it('renders the pilot route recording screen from UI state', () => {
     const document = createTestDocument();
     const state = createInitialPilotRouteRecordingScreenState();
@@ -21,6 +110,8 @@ describe('merchant admin browser entry', () => {
     assert.equal(screen.getAttribute('data-screen'), 'pilot-route-recording');
     assert.match(screen.textContent ?? '', /Pilot route recording/);
     assert.match(screen.textContent ?? '', /Route not recorded/);
+    assert.match(screen.textContent ?? '', /Next target/);
+    assert.match(screen.textContent ?? '', /Record pilot route/);
     assert.match(screen.textContent ?? '', /Pilot readiness/);
     assert.equal(screen.querySelectorAll('[data-action-id]').length, 6);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);

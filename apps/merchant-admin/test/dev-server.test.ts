@@ -163,6 +163,7 @@ describe('merchant admin dev server', () => {
           status: response.status,
           body: await response.json() as {
             ok?: boolean;
+            nextTarget?: { id?: string; label?: string };
             recording?: { stage?: string; routeId?: string };
             readiness?: {
               hasQrPlacement?: boolean;
@@ -174,6 +175,7 @@ describe('merchant admin dev server', () => {
 
       assert.equal(initialPilotState.status, 200);
       assert.equal(initialPilotState.body.ok, true);
+      assert.equal(initialPilotState.body.nextTarget?.id, 'run-guest-pilot-qa');
       assert.equal(initialPilotState.body.recording?.stage, 'launch-ready');
       assert.equal(initialPilotState.body.readiness?.hasQrPlacement, true);
 
@@ -200,6 +202,7 @@ describe('merchant admin dev server', () => {
         status: response.status,
         body: await response.json() as {
           ok?: boolean;
+          nextTarget?: { id?: string; label?: string };
           recording?: { stage?: string; routeId?: string; launchUrl?: string };
           readiness?: {
             hasQrPlacement?: boolean;
@@ -213,6 +216,11 @@ describe('merchant admin dev server', () => {
 
       assert.equal(updatedPilotState.status, 200);
       assert.equal(updatedPilotState.body.ok, true);
+      assert.equal(updatedPilotState.body.nextTarget?.id, 'complete-pilot-readiness');
+      assert.equal(
+        updatedPilotState.body.nextTarget?.label,
+        'Complete pilot readiness',
+      );
       assert.deepEqual(updatedPilotState.body.recording, {
         stage: 'active',
         routeId: 'pilot-restroom-route',
