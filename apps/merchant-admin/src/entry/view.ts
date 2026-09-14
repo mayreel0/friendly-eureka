@@ -220,10 +220,10 @@ export function renderPilotRouteRecordingScreen(
   followUpButton.setAttribute('data-action-id', 'record-follow-up');
   followUpButton.textContent = 'Record follow-up';
 
-  const followUps = document.createElement('ol');
-  followUps.setAttribute('data-follow-ups', 'pilot');
+  const openFollowUps = document.createElement('ol');
+  openFollowUps.setAttribute('data-follow-ups', 'open');
 
-  for (const followUp of view.followUps) {
+  for (const followUp of view.openFollowUps) {
     const followUpItem = document.createElement('li');
     followUpItem.setAttribute('data-follow-up-id', followUp.id);
     followUpItem.setAttribute('data-follow-up-status', followUp.status);
@@ -238,7 +238,21 @@ export function renderPilotRouteRecordingScreen(
       followUpItem.appendChild(completeButton);
     }
 
-    followUps.appendChild(followUpItem);
+    openFollowUps.appendChild(followUpItem);
+  }
+
+  const completedHeading = document.createElement('h3');
+  completedHeading.textContent = 'Completed follow-ups';
+
+  const completedFollowUps = document.createElement('ol');
+  completedFollowUps.setAttribute('data-follow-ups', 'completed');
+
+  for (const followUp of view.completedFollowUps) {
+    const followUpItem = document.createElement('li');
+    followUpItem.setAttribute('data-follow-up-id', followUp.id);
+    followUpItem.setAttribute('data-follow-up-status', followUp.status);
+    followUpItem.textContent = `${followUp.targetLabel} (${followUp.status}) at ${followUp.createdAt}`;
+    completedFollowUps.appendChild(followUpItem);
   }
 
   const followUpsPanel = createDashboardPanel(
@@ -246,7 +260,12 @@ export function renderPilotRouteRecordingScreen(
     'follow-ups',
     'Open follow-ups',
   );
-  followUpsPanel.append(followUpButton, followUps);
+  followUpsPanel.append(
+    followUpButton,
+    openFollowUps,
+    completedHeading,
+    completedFollowUps,
+  );
 
   const primaryColumn = document.createElement('div');
   primaryColumn.setAttribute('data-dashboard-column', 'primary');
