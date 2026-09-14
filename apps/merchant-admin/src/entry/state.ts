@@ -1,0 +1,330 @@
+import type {
+  PilotDevStateApiState,
+  PilotFollowUpAction,
+  PilotFollowUpSnapshot,
+  PilotImplementationTarget,
+  PilotReadinessApiState,
+  PilotRouteRecordingApiState,
+  PilotRouteRecordingScreenActionId,
+  PilotRouteRecordingScreenStage,
+  PilotRouteRecordingScreenState,
+} from './types.ts';
+
+export function createInitialPilotRouteRecordingScreenState(): PilotRouteRecordingScreenState {
+  return {
+    stage: 'empty',
+    hasQrPlacement: false,
+    hasStaffFallbackNote: false,
+    qaResults: {},
+    followUps: [],
+  };
+}
+
+export function deriveNextPilotImplementationTarget(
+  state: PilotRouteRecordingScreenState,
+): PilotImplementationTarget {
+  if (state.stage === 'empty') {
+    return {
+      id: 'record-pilot-route',
+      label: 'Record pilot route',
+      detail: 'Capture the pilot restroom route before testing can start.',
+    };
+  }
+
+  if (state.stage === 'recorded') {
+    return {
+      id: 'run-route-test',
+      label: 'Run route test',
+      detail: 'Verify the recorded route before activation.',
+    };
+  }
+
+  if (state.stage === 'tested') {
+    return {
+      id: 'activate-pilot-route',
+      label: 'Activate pilot route',
+      detail: 'Make the tested pilot route available for launch preparation.',
+    };
+  }
+
+  if (state.stage === 'active') {
+    if (!state.hasQrPlacement || !state.hasStaffFallbackNote) {
+      return {
+        id: 'complete-pilot-readiness',
+        label: 'Complete pilot readiness',
+        detail: 'Confirm QR placement and staff fallback notes before launch.',
+      };
+    }
+
+    return {
+      id: 'generate-guest-url',
+      label: 'Generate guest URL',
+      detail: 'Create the guest launch URL for the seeded pilot route.',
+    };
+  }
+
+  if (!state.qaResults['place-qr'] || !state.qaResults['staff-fallback-note']) {
+    return {
+      id: 'record-qa-evidence',
+      label: 'Record QA evidence',
+      detail: 'Attach QA result notes for QR placement and staff fallback.',
+    };
+  }
+
+  return {
+    id: 'run-guest-pilot-qa',
+    label: 'Run guest pilot QA',
+    detail: 'Open the guest URL and verify the end-to-end pilot experience.',
+  };
+}
+
+export function createPilotRouteRecordingView(
+  state: PilotRouteRecordingScreenState,
+) {
+  const checklist = createPilotReadinessChecklist(state);
+  const isReadyToLaunch = checklist.every((item) => item.complete);
+  const nextTarget = deriveNextPilotImplementationTarget(state);
+
+  return {
+    stage: state.stage,
+    title: 'Pilot route recording',
+    status: statusForPilotRouteRecordingStage(state.stage),
+    routeId: state.routeId,
+    launchUrl: state.launchUrl,
+    nextTarget,
+    followUps: state.followUps,
+    checklist,
+    actions: [
+      {
+        id: 'record-route',
+        label: 'Record route',
+        enabled: state.stage === 'empty',
+      },
+      {
+        id: 'mark-test-passed',
+        label: 'Mark test passed',
+        enabled: state.stage === 'recorded',
+      },
+      {
+        id: 'activate-route',
+        label: 'Activate route',
+        enabled: state.stage === 'tested',
+      },
+      {
+        id: 'generate-guest-url',
+        label: 'Generate guest URL',
+        enabled: state.stage === 'active' && isReadyToLaunch,
+      },
+      {
+        id: 'mark-qr-placed',
+        label: 'Confirm QR placed',
+        enabled: state.stage === 'active' && !state.hasQrPlacement,
+      },
+      {
+        id: 'mark-staff-fallback-ready',
+        label: 'Confirm fallback note',
+        enabled: state.stage === 'active' && !state.hasStaffFallbackNote,
+      },
+    ] satisfies {
+      id: PilotRouteRecordingScreenActionId;
+      label: string;
+      enabled: boolean;
+    }[],
+  };
+}
+
+export function applyLocalPilotRouteRecordingAction(
+  state: PilotRouteRecordingScreenState,
+  actionId: Exclude<
+    PilotRouteRecordingScreenActionId,
+    'generate-guest-url' | 'record-follow-up'
+  >,
+  now: (() => string) | undefined = defaultNow,
+): PilotRouteRecordingScreenState {
+  if (actionId === 'record-route') {
+    return {
+      ...state,
+      stage: 'recorded',
+      routeId: 'pilot-restroom-route',
+    };
+  }
+
+  if (actionId === 'mark-test-passed') {
+    return { ...state, stage: 'tested' };
+  }
+
+  if (actionId === 'mark-qr-placed') {
+    return {
+      ...state,
+      hasQrPlacement: true,
+      qaResults: {
+        ...state.qaResults,
+        'place-qr': {
+          summary: 'Verified QR placed',
+          recordedAt: now(),
+        },
+      },
+    };
+  }
+
+  if (actionId === 'mark-staff-fallback-ready') {
+    return {
+      ...state,
+      hasStaffFallbackNote: true,
+      qaResults: {
+        ...state.qaResults,
+        'staff-fallback-note': {
+          summary: 'Verified staff fallback note',
+          recordedAt: now(),
+        },
+      },
+    };
+  }
+
+  return { ...state, stage: 'active' };
+}
+
+export function recordPilotFollowUp(
+  state: PilotRouteRecordingScreenState,
+  now: (() => string) | undefined = defaultNow,
+): PilotRouteRecordingScreenState {
+  const target = deriveNextPilotImplementationTarget(state);
+  const followUp: PilotFollowUpAction = {
+    id: `follow-up-${state.followUps.length + 1}`,
+    targetId: target.id,
+    targetLabel: target.label,
+    status: 'open',
+    createdAt: now(),
+    snapshot: toPilotFollowUpSnapshot(state),
+  };
+
+  return {
+    ...state,
+    followUps: [...state.followUps, followUp],
+  };
+}
+
+export function createInitialPilotReadiness(): PilotReadinessApiState {
+  return {
+    hasQrPlacement: false,
+    hasStaffFallbackNote: false,
+    qaResults: {},
+  };
+}
+
+export function createInitialPilotRouteRecording(): PilotRouteRecordingApiState {
+  return {
+    stage: 'empty',
+  };
+}
+
+export function createInitialPilotState(): PilotDevStateApiState {
+  return {
+    recording: createInitialPilotRouteRecording(),
+    readiness: createInitialPilotReadiness(),
+    followUps: [],
+  };
+}
+
+export function toPilotReadinessApiState(
+  state: PilotReadinessApiState,
+): PilotReadinessApiState {
+  return {
+    hasQrPlacement: state.hasQrPlacement,
+    hasStaffFallbackNote: state.hasStaffFallbackNote,
+    qaResults: state.qaResults,
+  };
+}
+
+export function toPilotRouteRecordingApiState(
+  state: PilotRouteRecordingApiState,
+): PilotRouteRecordingApiState {
+  return {
+    stage: state.stage,
+    routeId: state.routeId,
+    launchUrl: state.launchUrl,
+  };
+}
+
+export function isPilotReadinessAction(
+  actionId: PilotRouteRecordingScreenActionId,
+) {
+  return (
+    actionId === 'mark-qr-placed' ||
+    actionId === 'mark-staff-fallback-ready'
+  );
+}
+
+export function isPilotRouteRecordingAction(
+  actionId: PilotRouteRecordingScreenActionId,
+) {
+  return (
+    actionId === 'record-route' ||
+    actionId === 'mark-test-passed' ||
+    actionId === 'activate-route'
+  );
+}
+
+function toPilotFollowUpSnapshot(
+  state: PilotRouteRecordingScreenState,
+): PilotFollowUpSnapshot {
+  return {
+    stage: state.stage,
+    routeId: state.routeId,
+    launchUrl: state.launchUrl,
+    hasQrPlacement: state.hasQrPlacement,
+    hasStaffFallbackNote: state.hasStaffFallbackNote,
+    qaResults: state.qaResults,
+  };
+}
+
+function createPilotReadinessChecklist(state: PilotRouteRecordingScreenState) {
+  return [
+    {
+      id: 'record-route',
+      label: 'Record route',
+      complete: state.stage !== 'empty',
+    },
+    {
+      id: 'test-route',
+      label: 'Test route',
+      complete: ['tested', 'active', 'launch-ready'].includes(state.stage),
+    },
+    {
+      id: 'place-qr',
+      label: 'Place QR',
+      complete: state.hasQrPlacement,
+      resultNote: state.qaResults['place-qr'],
+    },
+    {
+      id: 'staff-fallback-note',
+      label: 'Staff fallback note',
+      complete: state.hasStaffFallbackNote,
+      resultNote: state.qaResults['staff-fallback-note'],
+    },
+  ];
+}
+
+function statusForPilotRouteRecordingStage(stage: PilotRouteRecordingScreenStage) {
+  if (stage === 'empty') {
+    return 'Route not recorded';
+  }
+
+  if (stage === 'recorded') {
+    return 'Route recorded';
+  }
+
+  if (stage === 'tested') {
+    return 'Test passed';
+  }
+
+  if (stage === 'active') {
+    return 'Route active';
+  }
+
+  return 'Guest URL ready';
+}
+
+function defaultNow() {
+  return '2026-09-01T10:00:00.000Z';
+}
