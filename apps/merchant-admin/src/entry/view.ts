@@ -14,6 +14,7 @@ export function renderPilotRouteRecordingScreen(
   const view = createPilotRouteRecordingView(state);
   const section = document.createElement('section');
   section.setAttribute('data-screen', 'pilot-route-recording');
+  section.setAttribute('data-dashboard', 'merchant-pilot');
   section.setAttribute('data-stage', view.stage);
 
   const style = document.createElement('style');
@@ -27,7 +28,7 @@ export function renderPilotRouteRecordingScreen(
 
     section {
       box-sizing: border-box;
-      width: min(100%, 760px);
+      width: min(100%, 1040px);
       margin: 0 auto;
       padding: 32px 20px;
     }
@@ -47,6 +48,30 @@ export function renderPilotRouteRecordingScreen(
     p {
       margin: 0 0 16px;
       color: #46515f;
+    }
+
+    [data-dashboard-grid] {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    [data-dashboard-column] {
+      display: grid;
+      gap: 16px;
+    }
+
+    [data-dashboard-panel] {
+      box-sizing: border-box;
+      border: 1px solid #d7deea;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 16px;
+    }
+
+    [data-dashboard-panel] h2 {
+      margin-top: 0;
     }
 
     [data-status] {
@@ -108,10 +133,20 @@ export function renderPilotRouteRecordingScreen(
       color: #0f766e;
       font-weight: 700;
     }
+
+    @media (max-width: 760px) {
+      [data-dashboard-grid] {
+        grid-template-columns: 1fr;
+      }
+    }
   `;
 
   const heading = document.createElement('h1');
   heading.textContent = view.title;
+
+  const summary = document.createElement('p');
+  summary.textContent =
+    'Track the pilot route, launch readiness, follow-ups, and guest entry from one place.';
 
   const status = document.createElement('p');
   status.setAttribute('data-status', view.stage);
@@ -119,6 +154,9 @@ export function renderPilotRouteRecordingScreen(
 
   const route = document.createElement('p');
   route.textContent = view.routeId ? `Route: ${view.routeId}` : 'Route: none';
+
+  const routePanel = createDashboardPanel(document, 'route-status', 'Route status');
+  routePanel.append(status, route);
 
   const actions = document.createElement('div');
   actions.setAttribute('data-actions', 'pilot-route-recording');
@@ -131,6 +169,9 @@ export function renderPilotRouteRecordingScreen(
     button.disabled = !action.enabled;
     actions.appendChild(button);
   }
+
+  const actionsPanel = createDashboardPanel(document, 'actions', 'Pilot controls');
+  actionsPanel.append(actions);
 
   const checklist = document.createElement('ol');
   checklist.setAttribute('data-checklist', 'pilot-readiness');
@@ -151,29 +192,33 @@ export function renderPilotRouteRecordingScreen(
     checklist.appendChild(checklistItem);
   }
 
+  const checklistPanel = createDashboardPanel(
+    document,
+    'readiness',
+    'Pilot readiness',
+  );
+  checklistPanel.append(checklist);
+
   const launch = document.createElement('a');
   const launchUrl = toGuestLaunchUrl(view.launchUrl, options.guestOrigin);
   launch.setAttribute('data-launch-url', 'guest-webxr');
   launch.href = launchUrl ?? '';
   launch.textContent = launchUrl ?? 'Guest URL unavailable';
 
-  const targetHeading = document.createElement('h2');
-  targetHeading.textContent = 'Next target';
+  const launchPanel = createDashboardPanel(document, 'guest-launch', 'Guest launch');
+  launchPanel.append(launch);
 
   const target = document.createElement('p');
   target.setAttribute('data-next-target-id', view.nextTarget.id);
   target.textContent = `${view.nextTarget.label}: ${view.nextTarget.detail}`;
 
-  const checklistHeading = document.createElement('h2');
-  checklistHeading.textContent = 'Pilot readiness';
+  const targetPanel = createDashboardPanel(document, 'next-target', 'Next target');
+  targetPanel.append(target);
 
   const followUpButton = document.createElement('button');
   followUpButton.setAttribute('type', 'button');
   followUpButton.setAttribute('data-action-id', 'record-follow-up');
   followUpButton.textContent = 'Record follow-up';
-
-  const followUpsHeading = document.createElement('h2');
-  followUpsHeading.textContent = 'Open follow-ups';
 
   const followUps = document.createElement('ol');
   followUps.setAttribute('data-follow-ups', 'pilot');
@@ -185,22 +230,42 @@ export function renderPilotRouteRecordingScreen(
     followUps.appendChild(followUpItem);
   }
 
-  section.append(
-    style,
-    heading,
-    status,
-    route,
-    actions,
-    launch,
-    targetHeading,
-    target,
-    followUpButton,
-    followUpsHeading,
-    followUps,
-    checklistHeading,
-    checklist,
+  const followUpsPanel = createDashboardPanel(
+    document,
+    'follow-ups',
+    'Open follow-ups',
   );
+  followUpsPanel.append(followUpButton, followUps);
+
+  const primaryColumn = document.createElement('div');
+  primaryColumn.setAttribute('data-dashboard-column', 'primary');
+  primaryColumn.append(routePanel, targetPanel, actionsPanel, checklistPanel);
+
+  const secondaryColumn = document.createElement('div');
+  secondaryColumn.setAttribute('data-dashboard-column', 'secondary');
+  secondaryColumn.append(launchPanel, followUpsPanel);
+
+  const dashboard = document.createElement('div');
+  dashboard.setAttribute('data-dashboard-grid', 'pilot');
+  dashboard.append(primaryColumn, secondaryColumn);
+
+  section.append(style, heading, summary, dashboard);
   return section;
+}
+
+function createDashboardPanel(
+  document: MerchantAdminDocument,
+  id: string,
+  headingText: string,
+) {
+  const panel = document.createElement('div');
+  panel.setAttribute('data-dashboard-panel', id);
+
+  const heading = document.createElement('h2');
+  heading.textContent = headingText;
+  panel.appendChild(heading);
+
+  return panel;
 }
 
 function toGuestLaunchUrl(
