@@ -22,6 +22,21 @@ export type PilotRouteRecordingScreenState = {
   launchUrl?: string;
 };
 
+export type PilotImplementationTargetId =
+  | 'record-pilot-route'
+  | 'run-route-test'
+  | 'activate-pilot-route'
+  | 'complete-pilot-readiness'
+  | 'generate-guest-url'
+  | 'record-qa-evidence'
+  | 'run-guest-pilot-qa';
+
+export type PilotImplementationTarget = {
+  id: PilotImplementationTargetId;
+  label: string;
+  detail: string;
+};
+
 export type PilotReadinessChecklistId =
   | 'record-route'
   | 'test-route'
@@ -48,6 +63,7 @@ export type PilotRouteRecordingApiState = {
 export type PilotDevStateApiState = {
   recording: PilotRouteRecordingApiState;
   readiness: PilotReadinessApiState;
+  nextTarget?: PilotImplementationTarget;
 };
 
 export type MerchantAdminElement = {
@@ -112,6 +128,64 @@ export function createInitialPilotRouteRecordingScreenState(): PilotRouteRecordi
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
     qaResults: {},
+  };
+}
+
+export function deriveNextPilotImplementationTarget(
+  state: PilotRouteRecordingScreenState,
+): PilotImplementationTarget {
+  if (state.stage === 'empty') {
+    return {
+      id: 'record-pilot-route',
+      label: 'Record pilot route',
+      detail: 'Capture the pilot restroom route before testing can start.',
+    };
+  }
+
+  if (state.stage === 'recorded') {
+    return {
+      id: 'run-route-test',
+      label: 'Run route test',
+      detail: 'Verify the recorded route before activation.',
+    };
+  }
+
+  if (state.stage === 'tested') {
+    return {
+      id: 'activate-pilot-route',
+      label: 'Activate pilot route',
+      detail: 'Make the tested pilot route available for launch preparation.',
+    };
+  }
+
+  if (state.stage === 'active') {
+    if (!state.hasQrPlacement || !state.hasStaffFallbackNote) {
+      return {
+        id: 'complete-pilot-readiness',
+        label: 'Complete pilot readiness',
+        detail: 'Confirm QR placement and staff fallback notes before launch.',
+      };
+    }
+
+    return {
+      id: 'generate-guest-url',
+      label: 'Generate guest URL',
+      detail: 'Create the guest launch URL for the seeded pilot route.',
+    };
+  }
+
+  if (!state.qaResults['place-qr'] || !state.qaResults['staff-fallback-note']) {
+    return {
+      id: 'record-qa-evidence',
+      label: 'Record QA evidence',
+      detail: 'Attach QA result notes for QR placement and staff fallback.',
+    };
+  }
+
+  return {
+    id: 'run-guest-pilot-qa',
+    label: 'Run guest pilot QA',
+    detail: 'Open the guest URL and verify the end-to-end pilot experience.',
   };
 }
 
@@ -266,6 +340,13 @@ export function renderPilotRouteRecordingScreen(
   launch.href = launchUrl ?? '';
   launch.textContent = launchUrl ?? 'Guest URL unavailable';
 
+  const targetHeading = document.createElement('h2');
+  targetHeading.textContent = 'Next target';
+
+  const target = document.createElement('p');
+  target.setAttribute('data-next-target-id', view.nextTarget.id);
+  target.textContent = `${view.nextTarget.label}: ${view.nextTarget.detail}`;
+
   const checklistHeading = document.createElement('h2');
   checklistHeading.textContent = 'Pilot readiness';
 
@@ -276,6 +357,8 @@ export function renderPilotRouteRecordingScreen(
     route,
     actions,
     launch,
+    targetHeading,
+    target,
     checklistHeading,
     checklist,
   );
@@ -387,6 +470,7 @@ export function registerMerchantAdminElement(
 function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
   const checklist = createPilotReadinessChecklist(state);
   const isReadyToLaunch = checklist.every((item) => item.complete);
+  const nextTarget = deriveNextPilotImplementationTarget(state);
 
   return {
     stage: state.stage,
@@ -394,6 +478,7 @@ function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
     status: statusForPilotRouteRecordingStage(state.stage),
     routeId: state.routeId,
     launchUrl: state.launchUrl,
+    nextTarget,
     checklist,
     actions: [
       {
