@@ -7,6 +7,7 @@ import { createApiContext } from '../api/src/server.ts';
 import { recordPilotRestroomRoute } from './src/index.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/index.ts';
 import type {
+  PilotFollowUpAction,
   PilotQaResultNote,
   PilotReadinessChecklistId,
   PilotRouteRecordingScreenState,
@@ -185,6 +186,7 @@ type PilotRouteRecordingState = {
 type PilotState = {
   recording: PilotRouteRecordingState;
   readiness: PilotReadinessState;
+  followUps: PilotFollowUpAction[];
 };
 
 function toPilotRouteRecordingScreenState(
@@ -193,6 +195,7 @@ function toPilotRouteRecordingScreenState(
   return {
     ...state.recording,
     ...state.readiness,
+    followUps: state.followUps,
   };
 }
 
@@ -200,6 +203,7 @@ function createInitialPilotState(): PilotState {
   return {
     recording: createInitialPilotRouteRecording(),
     readiness: createInitialPilotReadiness(),
+    followUps: [],
   };
 }
 
@@ -225,6 +229,45 @@ function parsePilotStateUpdate(value: unknown): PilotState {
   return {
     recording: parsePilotRouteRecordingUpdate(value.recording),
     readiness: parsePilotReadinessUpdate(value.readiness),
+    followUps: parseFollowUps(value.followUps),
+  };
+}
+
+function parseFollowUps(value: unknown): PilotFollowUpAction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    const followUp = parseFollowUp(item);
+    return followUp ? [followUp] : [];
+  });
+}
+
+function parseFollowUp(value: unknown): PilotFollowUpAction | undefined {
+  if (!isRecord(value) || !isRecord(value.snapshot)) {
+    return undefined;
+  }
+
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.targetId !== 'string' ||
+    typeof value.targetLabel !== 'string' ||
+    typeof value.createdAt !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: value.id,
+    targetId: value.targetId as PilotFollowUpAction['targetId'],
+    targetLabel: value.targetLabel,
+    status: value.status === 'completed' ? 'completed' : 'open',
+    createdAt: value.createdAt,
+    snapshot: {
+      ...parsePilotRouteRecordingUpdate(value.snapshot),
+      ...parsePilotReadinessUpdate(value.snapshot),
+    },
   };
 }
 

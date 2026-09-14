@@ -11,13 +11,15 @@ export type PilotRouteRecordingScreenActionId =
   | 'activate-route'
   | 'mark-qr-placed'
   | 'mark-staff-fallback-ready'
-  | 'generate-guest-url';
+  | 'generate-guest-url'
+  | 'record-follow-up';
 
 export type PilotRouteRecordingScreenState = {
   stage: PilotRouteRecordingScreenStage;
   hasQrPlacement: boolean;
   hasStaffFallbackNote: boolean;
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+  followUps: PilotFollowUpAction[];
   routeId?: string;
   launchUrl?: string;
 };
@@ -35,6 +37,24 @@ export type PilotImplementationTarget = {
   id: PilotImplementationTargetId;
   label: string;
   detail: string;
+};
+
+export type PilotFollowUpAction = {
+  id: string;
+  targetId: PilotImplementationTargetId;
+  targetLabel: string;
+  status: 'open' | 'completed';
+  createdAt: string;
+  snapshot: PilotFollowUpSnapshot;
+};
+
+export type PilotFollowUpSnapshot = {
+  stage: PilotRouteRecordingScreenStage;
+  hasQrPlacement: boolean;
+  hasStaffFallbackNote: boolean;
+  qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+  routeId?: string;
+  launchUrl?: string;
 };
 
 export type PilotReadinessChecklistId =
@@ -63,6 +83,7 @@ export type PilotRouteRecordingApiState = {
 export type PilotDevStateApiState = {
   recording: PilotRouteRecordingApiState;
   readiness: PilotReadinessApiState;
+  followUps?: PilotFollowUpAction[];
   nextTarget?: PilotImplementationTarget;
 };
 
@@ -128,6 +149,7 @@ export function createInitialPilotRouteRecordingScreenState(): PilotRouteRecordi
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
     qaResults: {},
+    followUps: [],
   };
 }
 
@@ -350,6 +372,24 @@ export function renderPilotRouteRecordingScreen(
   const checklistHeading = document.createElement('h2');
   checklistHeading.textContent = 'Pilot readiness';
 
+  const followUpButton = document.createElement('button');
+  followUpButton.setAttribute('type', 'button');
+  followUpButton.setAttribute('data-action-id', 'record-follow-up');
+  followUpButton.textContent = 'Record follow-up';
+
+  const followUpsHeading = document.createElement('h2');
+  followUpsHeading.textContent = 'Open follow-ups';
+
+  const followUps = document.createElement('ol');
+  followUps.setAttribute('data-follow-ups', 'pilot');
+
+  for (const followUp of view.followUps) {
+    const followUpItem = document.createElement('li');
+    followUpItem.setAttribute('data-follow-up-id', followUp.id);
+    followUpItem.textContent = `${followUp.targetLabel} (${followUp.status}) at ${followUp.createdAt}`;
+    followUps.appendChild(followUpItem);
+  }
+
   section.append(
     style,
     heading,
@@ -359,6 +399,9 @@ export function renderPilotRouteRecordingScreen(
     launch,
     targetHeading,
     target,
+    followUpButton,
+    followUpsHeading,
+    followUps,
     checklistHeading,
     checklist,
   );
@@ -421,7 +464,16 @@ export function registerMerchantAdminElement(
           () => undefined,
         );
         return;
-      } else {
+      }
+
+      if (actionId === 'record-follow-up') {
+        this.state = recordPilotFollowUp(this.state, environment.now);
+        this.render();
+        await savePilotState(environment, this.state).catch(() => undefined);
+        return;
+      }
+
+      {
         this.state = applyLocalPilotRouteRecordingAction(
           this.state,
           actionId,
@@ -458,6 +510,7 @@ export function registerMerchantAdminElement(
         ...this.state,
         ...pilotState.recording,
         ...pilotState.readiness,
+        followUps: pilotState.followUps ?? [],
       };
       this.render();
     }
@@ -479,6 +532,7 @@ function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
     routeId: state.routeId,
     launchUrl: state.launchUrl,
     nextTarget,
+    followUps: state.followUps,
     checklist,
     actions: [
       {
@@ -521,7 +575,10 @@ function createPilotRouteRecordingView(state: PilotRouteRecordingScreenState) {
 
 function applyLocalPilotRouteRecordingAction(
   state: PilotRouteRecordingScreenState,
-  actionId: Exclude<PilotRouteRecordingScreenActionId, 'generate-guest-url'>,
+  actionId: Exclude<
+    PilotRouteRecordingScreenActionId,
+    'generate-guest-url' | 'record-follow-up'
+  >,
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
   if (actionId === 'record-route') {
@@ -565,6 +622,39 @@ function applyLocalPilotRouteRecordingAction(
   }
 
   return { ...state, stage: 'active' };
+}
+
+function recordPilotFollowUp(
+  state: PilotRouteRecordingScreenState,
+  now: (() => string) | undefined = defaultNow,
+): PilotRouteRecordingScreenState {
+  const target = deriveNextPilotImplementationTarget(state);
+  const followUp: PilotFollowUpAction = {
+    id: `follow-up-${state.followUps.length + 1}`,
+    targetId: target.id,
+    targetLabel: target.label,
+    status: 'open',
+    createdAt: now(),
+    snapshot: toPilotFollowUpSnapshot(state),
+  };
+
+  return {
+    ...state,
+    followUps: [...state.followUps, followUp],
+  };
+}
+
+function toPilotFollowUpSnapshot(
+  state: PilotRouteRecordingScreenState,
+): PilotFollowUpSnapshot {
+  return {
+    stage: state.stage,
+    routeId: state.routeId,
+    launchUrl: state.launchUrl,
+    hasQrPlacement: state.hasQrPlacement,
+    hasStaffFallbackNote: state.hasStaffFallbackNote,
+    qaResults: state.qaResults,
+  };
 }
 
 function createPilotReadinessChecklist(state: PilotRouteRecordingScreenState) {
@@ -687,6 +777,7 @@ function createInitialPilotState(): PilotDevStateApiState {
   return {
     recording: createInitialPilotRouteRecording(),
     readiness: createInitialPilotReadiness(),
+    followUps: [],
   };
 }
 
@@ -719,6 +810,7 @@ async function savePilotState(
   const pilotState = {
     recording: toPilotRouteRecordingApiState(state),
     readiness: toPilotReadinessApiState(state),
+    followUps: state.followUps,
   };
 
   if (environment.savePilotState) {

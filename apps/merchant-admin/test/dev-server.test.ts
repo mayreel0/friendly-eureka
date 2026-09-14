@@ -197,12 +197,29 @@ describe('merchant admin dev server', () => {
               },
             },
           },
+          followUps: [
+            {
+              id: 'follow-up-1',
+              targetId: 'complete-pilot-readiness',
+              targetLabel: 'Complete pilot readiness',
+              status: 'open',
+              createdAt: '2026-09-01T10:30:00.000Z',
+              snapshot: {
+                stage: 'active',
+                routeId: 'pilot-restroom-route',
+                hasQrPlacement: false,
+                hasStaffFallbackNote: true,
+                qaResults: {},
+              },
+            },
+          ],
         }),
       }).then(async (response) => ({
         status: response.status,
         body: await response.json() as {
           ok?: boolean;
           nextTarget?: { id?: string; label?: string };
+          followUps?: { targetId?: string; createdAt?: string }[];
           recording?: { stage?: string; routeId?: string; launchUrl?: string };
           readiness?: {
             hasQrPlacement?: boolean;
@@ -230,6 +247,14 @@ describe('merchant admin dev server', () => {
       assert.equal(
         updatedPilotState.body.readiness?.qaResults?.['staff-fallback-note']?.recordedAt,
         '2026-09-01T10:16:00.000Z',
+      );
+      assert.equal(
+        updatedPilotState.body.followUps?.[0]?.targetId,
+        'complete-pilot-readiness',
+      );
+      assert.equal(
+        updatedPilotState.body.followUps?.[0]?.createdAt,
+        '2026-09-01T10:30:00.000Z',
       );
 
       const recordingAfterPilotStateUpdate = await fetch(
