@@ -85,6 +85,7 @@ export function createPilotRouteRecordingView(
   const isReadyToLaunch = checklist.every((item) => item.complete);
   const nextTarget = deriveNextPilotImplementationTarget(state);
   const primaryActions = createPrimaryNextTargetActions(nextTarget.id);
+  const progress = createPilotProgressSummary(state);
   const openFollowUps = state.followUps.filter(
     (followUp) => followUp.status === 'open',
   );
@@ -96,6 +97,7 @@ export function createPilotRouteRecordingView(
     stage: state.stage,
     title: 'Merchant pilot dashboard',
     status: statusForPilotRouteRecordingStage(state.stage),
+    progress,
     routeId: state.routeId,
     launchUrl: state.launchUrl,
     nextTarget,
@@ -140,6 +142,24 @@ export function createPilotRouteRecordingView(
       label: string;
       enabled: boolean;
     }[],
+  };
+}
+
+function createPilotProgressSummary(state: PilotRouteRecordingScreenState) {
+  const completedSteps = [
+    state.stage !== 'empty',
+    ['tested', 'active', 'launch-ready'].includes(state.stage),
+    ['active', 'launch-ready'].includes(state.stage),
+    state.hasQrPlacement,
+    state.hasStaffFallbackNote,
+    state.stage === 'launch-ready',
+  ].filter(Boolean).length;
+  const totalSteps = 6;
+
+  return {
+    completed: completedSteps,
+    total: totalSteps,
+    label: `${completedSteps} of ${totalSteps} pilot steps complete`,
   };
 }
 

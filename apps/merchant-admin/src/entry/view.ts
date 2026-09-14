@@ -50,6 +50,17 @@ export function renderPilotRouteRecordingScreen(
       color: #46515f;
     }
 
+    [data-progress-summary] {
+      margin: 0 0 8px;
+      color: #17202a;
+      font-size: 1.125rem;
+      font-weight: 700;
+    }
+
+    [data-progress-next-target] {
+      margin-bottom: 24px;
+    }
+
     [data-dashboard-grid] {
       display: grid;
       grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
@@ -147,6 +158,14 @@ export function renderPilotRouteRecordingScreen(
   const summary = document.createElement('p');
   summary.textContent =
     'Track the pilot route, launch readiness, follow-ups, and guest entry from one place.';
+
+  const progress = document.createElement('p');
+  progress.setAttribute('data-progress-summary', 'pilot');
+  progress.textContent = view.progress.label;
+
+  const progressNextTarget = document.createElement('p');
+  progressNextTarget.setAttribute('data-progress-next-target', view.nextTarget.id);
+  progressNextTarget.textContent = `Next: ${view.nextTarget.label}`;
 
   const status = document.createElement('p');
   status.setAttribute('data-status', view.stage);
@@ -298,7 +317,7 @@ export function renderPilotRouteRecordingScreen(
   dashboard.setAttribute('data-dashboard-grid', 'pilot');
   dashboard.append(primaryColumn, secondaryColumn);
 
-  section.append(style, heading, summary, dashboard);
+  section.append(style, heading, summary, progress, progressNextTarget, dashboard);
   return section;
 }
 
