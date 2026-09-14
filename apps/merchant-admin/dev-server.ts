@@ -8,6 +8,7 @@ import { recordPilotRestroomRoute } from './src/index.ts';
 import type {
   PilotQaResultNote,
   PilotReadinessChecklistId,
+  PilotRouteRecordingScreenStage,
 } from './src/entry/index.ts';
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -29,10 +30,37 @@ export function createMerchantAdminDevServer(
   const resolvedRepoRoot = resolve(options.repoRoot ?? repoRoot);
   const guestOrigin = options.guestOrigin ?? 'http://127.0.0.1:4173';
   let readiness = createInitialPilotReadiness();
+  let recording = createInitialPilotRouteRecording();
 
   return createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+
+      if (requestUrl.pathname === '/api/dev/pilot-route-recording') {
+        if (request.method === 'GET') {
+          writeJson(response, 200, {
+            ok: true,
+            ...recording,
+          });
+          return;
+        }
+
+        if (request.method === 'POST') {
+          recording = parsePilotRouteRecordingUpdate(await readJson(request));
+          writeJson(response, 200, {
+            ok: true,
+            ...recording,
+          });
+          return;
+        }
+
+        writeJson(response, 405, {
+          ok: false,
+          status: 405,
+          error: 'method-not-allowed',
+        });
+        return;
+      }
 
       if (requestUrl.pathname === '/api/dev/pilot-readiness') {
         if (request.method === 'GET') {
@@ -109,11 +137,23 @@ type PilotReadinessState = {
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
 };
 
+type PilotRouteRecordingState = {
+  stage: PilotRouteRecordingScreenStage;
+  routeId?: string;
+  launchUrl?: string;
+};
+
 function createInitialPilotReadiness(): PilotReadinessState {
   return {
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
     qaResults: {},
+  };
+}
+
+function createInitialPilotRouteRecording(): PilotRouteRecordingState {
+  return {
+    stage: 'empty',
   };
 }
 
@@ -127,6 +167,35 @@ function parsePilotReadinessUpdate(value: unknown): PilotReadinessState {
     hasStaffFallbackNote: value.hasStaffFallbackNote === true,
     qaResults: parseQaResults(value.qaResults),
   };
+}
+
+function parsePilotRouteRecordingUpdate(value: unknown): PilotRouteRecordingState {
+  if (!isRecord(value)) {
+    return createInitialPilotRouteRecording();
+  }
+
+  const stage = parsePilotRouteRecordingStage(value.stage);
+
+  return {
+    stage,
+    routeId: typeof value.routeId === 'string' ? value.routeId : undefined,
+    launchUrl: typeof value.launchUrl === 'string' ? value.launchUrl : undefined,
+  };
+}
+
+function parsePilotRouteRecordingStage(
+  value: unknown,
+): PilotRouteRecordingScreenStage {
+  if (
+    value === 'recorded' ||
+    value === 'tested' ||
+    value === 'active' ||
+    value === 'launch-ready'
+  ) {
+    return value;
+  }
+
+  return 'empty';
 }
 
 function parseQaResults(

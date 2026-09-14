@@ -100,6 +100,63 @@ describe('merchant admin dev server', () => {
 
       assert.equal(reloadedReadiness.status, 200);
       assert.deepEqual(reloadedReadiness.body, savedReadiness.body);
+
+      const initialRecording = await fetch(
+        `${baseUrl}/api/dev/pilot-route-recording`,
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as {
+          ok?: boolean;
+          stage?: string;
+          routeId?: string;
+          launchUrl?: string;
+        },
+      }));
+
+      assert.equal(initialRecording.status, 200);
+      assert.equal(initialRecording.body.ok, true);
+      assert.equal(initialRecording.body.stage, 'empty');
+      assert.equal(initialRecording.body.routeId, undefined);
+
+      const savedRecording = await fetch(
+        `${baseUrl}/api/dev/pilot-route-recording`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            stage: 'launch-ready',
+            routeId: 'pilot-restroom-route',
+            launchUrl: 'http://127.0.0.1:4173/?token=test-token',
+          }),
+        },
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as {
+          ok?: boolean;
+          stage?: string;
+          routeId?: string;
+          launchUrl?: string;
+        },
+      }));
+
+      assert.equal(savedRecording.status, 200);
+      assert.equal(savedRecording.body.ok, true);
+      assert.equal(savedRecording.body.stage, 'launch-ready');
+      assert.equal(savedRecording.body.routeId, 'pilot-restroom-route');
+      assert.equal(
+        savedRecording.body.launchUrl,
+        'http://127.0.0.1:4173/?token=test-token',
+      );
+
+      const reloadedRecording = await fetch(
+        `${baseUrl}/api/dev/pilot-route-recording`,
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as typeof savedRecording.body,
+      }));
+
+      assert.equal(reloadedRecording.status, 200);
+      assert.deepEqual(reloadedRecording.body, savedRecording.body);
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error: Error | undefined) => {

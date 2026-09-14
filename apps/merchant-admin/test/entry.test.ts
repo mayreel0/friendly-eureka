@@ -173,6 +173,63 @@ describe('merchant admin browser entry', () => {
       },
     });
   });
+
+  it('loads and saves pilot route recording through the environment API', async () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+    const saves: unknown[] = [];
+
+    registerMerchantAdminElement({
+      customElements: registry,
+      HTMLElement: TestMerchantHTMLElement,
+      document,
+      loadRouteRecording: async () => ({
+        stage: 'tested',
+        routeId: 'pilot-restroom-route',
+        launchUrl: undefined,
+      }),
+      saveRouteRecording: async (state) => {
+        saves.push(state);
+      },
+      generateGuestUrl: async () => ({
+        launchUrl: 'http://127.0.0.1:4173/?token=test-token',
+      }),
+    });
+
+    const MerchantAdminElement = registry.get('lechigo-merchant-admin');
+    assert.ok(MerchantAdminElement);
+
+    const element = new MerchantAdminElement() as unknown as TestMerchantHTMLElement & {
+      connectedCallback(): void;
+    };
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const root = element.shadowRoot;
+    assert.ok(root);
+    assert.match(root.textContent ?? '', /Test passed/);
+    assert.match(root.textContent ?? '', /Route: pilot-restroom-route/);
+
+    getActionButtons(root)[2]?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(saves.at(0), {
+      stage: 'active',
+      routeId: 'pilot-restroom-route',
+      launchUrl: undefined,
+    });
+
+    getActionButtons(root)[4]?.click();
+    getActionButtons(root)[5]?.click();
+    getActionButtons(root)[3]?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(saves.at(-1), {
+      stage: 'launch-ready',
+      routeId: 'pilot-restroom-route',
+      launchUrl: 'http://127.0.0.1:4173/?token=test-token',
+    });
+  });
 });
 
 function createTestDocument(): MerchantAdminDocument {
