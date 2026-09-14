@@ -20,6 +20,7 @@ describe('merchant admin browser entry', () => {
         hasQrPlacement: false,
         hasStaffFallbackNote: false,
         qaResults: {},
+        followUps: [],
       }).id,
       'record-pilot-route',
     );
@@ -30,6 +31,7 @@ describe('merchant admin browser entry', () => {
         hasQrPlacement: false,
         hasStaffFallbackNote: false,
         qaResults: {},
+        followUps: [],
       }).id,
       'run-route-test',
     );
@@ -40,6 +42,7 @@ describe('merchant admin browser entry', () => {
         hasQrPlacement: false,
         hasStaffFallbackNote: false,
         qaResults: {},
+        followUps: [],
       }).id,
       'activate-pilot-route',
     );
@@ -50,6 +53,7 @@ describe('merchant admin browser entry', () => {
         hasQrPlacement: false,
         hasStaffFallbackNote: true,
         qaResults: {},
+        followUps: [],
       }).id,
       'complete-pilot-readiness',
     );
@@ -60,6 +64,7 @@ describe('merchant admin browser entry', () => {
         hasQrPlacement: true,
         hasStaffFallbackNote: true,
         qaResults: {},
+        followUps: [],
       }).id,
       'generate-guest-url',
     );
@@ -76,6 +81,7 @@ describe('merchant admin browser entry', () => {
             recordedAt: '2026-09-01T10:10:00.000Z',
           },
         },
+        followUps: [],
       }).id,
       'record-qa-evidence',
     );
@@ -96,6 +102,7 @@ describe('merchant admin browser entry', () => {
             recordedAt: '2026-09-01T10:20:00.000Z',
           },
         },
+        followUps: [],
       }).id,
       'run-guest-pilot-qa',
     );
@@ -113,7 +120,7 @@ describe('merchant admin browser entry', () => {
     assert.match(screen.textContent ?? '', /Next target/);
     assert.match(screen.textContent ?? '', /Record pilot route/);
     assert.match(screen.textContent ?? '', /Pilot readiness/);
-    assert.equal(screen.querySelectorAll('[data-action-id]').length, 6);
+    assert.equal(screen.querySelectorAll('[data-action-id]').length, 7);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
     assert.match(screen.textContent ?? '', /Pending: Record route/);
     assert.match(screen.textContent ?? '', /Pending: Place QR/);
@@ -393,6 +400,83 @@ describe('merchant admin browser entry', () => {
           },
         },
       },
+      followUps: [],
+    });
+  });
+
+  it('records a follow-up action from the current next target', async () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+    const saves: unknown[] = [];
+
+    registerMerchantAdminElement({
+      customElements: registry,
+      HTMLElement: TestMerchantHTMLElement,
+      document,
+      loadPilotState: async () => ({
+        recording: {
+          stage: 'active',
+          routeId: 'pilot-restroom-route',
+        },
+        readiness: {
+          hasQrPlacement: false,
+          hasStaffFallbackNote: true,
+          qaResults: {},
+        },
+        followUps: [],
+      }),
+      savePilotState: async (state) => {
+        saves.push(state);
+      },
+      now: () => '2026-09-01T10:30:00.000Z',
+    });
+
+    const MerchantAdminElement = registry.get('lechigo-merchant-admin');
+    assert.ok(MerchantAdminElement);
+
+    const element = new MerchantAdminElement() as unknown as TestMerchantHTMLElement & {
+      connectedCallback(): void;
+    };
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const root = element.shadowRoot;
+    assert.ok(root);
+    assert.match(root.textContent ?? '', /Complete pilot readiness/);
+
+    getActionButton(root, 'record-follow-up')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.match(root.textContent ?? '', /Open follow-ups/);
+    assert.match(root.textContent ?? '', /Complete pilot readiness/);
+    assert.deepEqual(saves.at(0), {
+      recording: {
+        stage: 'active',
+        routeId: 'pilot-restroom-route',
+        launchUrl: undefined,
+      },
+      readiness: {
+        hasQrPlacement: false,
+        hasStaffFallbackNote: true,
+        qaResults: {},
+      },
+      followUps: [
+        {
+          id: 'follow-up-1',
+          targetId: 'complete-pilot-readiness',
+          targetLabel: 'Complete pilot readiness',
+          status: 'open',
+          createdAt: '2026-09-01T10:30:00.000Z',
+          snapshot: {
+            stage: 'active',
+            routeId: 'pilot-restroom-route',
+            launchUrl: undefined,
+            hasQrPlacement: false,
+            hasStaffFallbackNote: true,
+            qaResults: {},
+          },
+        },
+      ],
     });
   });
 });
@@ -407,6 +491,12 @@ function createTestDocument(): MerchantAdminDocument {
 
 function getActionButtons(root: TestElement) {
   return root.querySelectorAll('[data-action-id]') as TestElement[];
+}
+
+function getActionButton(root: TestElement, actionId: string) {
+  return getActionButtons(root).find(
+    (button) => button.getAttribute('data-action-id') === actionId,
+  );
 }
 
 class TestElement implements MerchantAdminDomElement {
