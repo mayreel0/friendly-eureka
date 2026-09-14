@@ -84,6 +84,7 @@ export function createPilotRouteRecordingView(
   const checklist = createPilotReadinessChecklist(state);
   const isReadyToLaunch = checklist.every((item) => item.complete);
   const nextTarget = deriveNextPilotImplementationTarget(state);
+  const primaryActions = createPrimaryNextTargetActions(nextTarget.id);
   const openFollowUps = state.followUps.filter(
     (followUp) => followUp.status === 'open',
   );
@@ -98,6 +99,7 @@ export function createPilotRouteRecordingView(
     routeId: state.routeId,
     launchUrl: state.launchUrl,
     nextTarget,
+    primaryActions,
     followUps: state.followUps,
     openFollowUps,
     completedFollowUps,
@@ -139,6 +141,33 @@ export function createPilotRouteRecordingView(
       enabled: boolean;
     }[],
   };
+}
+
+function createPrimaryNextTargetActions(targetId: PilotImplementationTarget['id']) {
+  if (targetId === 'record-pilot-route') {
+    return ['record-route'] satisfies PilotRouteRecordingScreenActionId[];
+  }
+
+  if (targetId === 'run-route-test') {
+    return ['mark-test-passed'] satisfies PilotRouteRecordingScreenActionId[];
+  }
+
+  if (targetId === 'activate-pilot-route') {
+    return ['activate-route'] satisfies PilotRouteRecordingScreenActionId[];
+  }
+
+  if (targetId === 'complete-pilot-readiness') {
+    return [
+      'mark-qr-placed',
+      'mark-staff-fallback-ready',
+    ] satisfies PilotRouteRecordingScreenActionId[];
+  }
+
+  if (targetId === 'generate-guest-url') {
+    return ['generate-guest-url'] satisfies PilotRouteRecordingScreenActionId[];
+  }
+
+  return [] satisfies PilotRouteRecordingScreenActionId[];
 }
 
 export function applyLocalPilotRouteRecordingAction(
