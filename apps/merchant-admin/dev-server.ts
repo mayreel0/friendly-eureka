@@ -29,27 +29,55 @@ export function createMerchantAdminDevServer(
   const resolvedAppRoot = resolve(options.appRoot ?? appRoot);
   const resolvedRepoRoot = resolve(options.repoRoot ?? repoRoot);
   const guestOrigin = options.guestOrigin ?? 'http://127.0.0.1:4173';
-  let readiness = createInitialPilotReadiness();
-  let recording = createInitialPilotRouteRecording();
+  let pilotState = createInitialPilotState();
 
   return createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
 
-      if (requestUrl.pathname === '/api/dev/pilot-route-recording') {
+      if (requestUrl.pathname === '/api/dev/pilot-state') {
         if (request.method === 'GET') {
           writeJson(response, 200, {
             ok: true,
-            ...recording,
+            ...pilotState,
           });
           return;
         }
 
         if (request.method === 'POST') {
-          recording = parsePilotRouteRecordingUpdate(await readJson(request));
+          pilotState = parsePilotStateUpdate(await readJson(request));
           writeJson(response, 200, {
             ok: true,
-            ...recording,
+            ...pilotState,
+          });
+          return;
+        }
+
+        writeJson(response, 405, {
+          ok: false,
+          status: 405,
+          error: 'method-not-allowed',
+        });
+        return;
+      }
+
+      if (requestUrl.pathname === '/api/dev/pilot-route-recording') {
+        if (request.method === 'GET') {
+          writeJson(response, 200, {
+            ok: true,
+            ...pilotState.recording,
+          });
+          return;
+        }
+
+        if (request.method === 'POST') {
+          pilotState = {
+            ...pilotState,
+            recording: parsePilotRouteRecordingUpdate(await readJson(request)),
+          };
+          writeJson(response, 200, {
+            ok: true,
+            ...pilotState.recording,
           });
           return;
         }
@@ -66,16 +94,19 @@ export function createMerchantAdminDevServer(
         if (request.method === 'GET') {
           writeJson(response, 200, {
             ok: true,
-            ...readiness,
+            ...pilotState.readiness,
           });
           return;
         }
 
         if (request.method === 'POST') {
-          readiness = parsePilotReadinessUpdate(await readJson(request));
+          pilotState = {
+            ...pilotState,
+            readiness: parsePilotReadinessUpdate(await readJson(request)),
+          };
           writeJson(response, 200, {
             ok: true,
-            ...readiness,
+            ...pilotState.readiness,
           });
           return;
         }
@@ -143,6 +174,18 @@ type PilotRouteRecordingState = {
   launchUrl?: string;
 };
 
+type PilotState = {
+  recording: PilotRouteRecordingState;
+  readiness: PilotReadinessState;
+};
+
+function createInitialPilotState(): PilotState {
+  return {
+    recording: createInitialPilotRouteRecording(),
+    readiness: createInitialPilotReadiness(),
+  };
+}
+
 function createInitialPilotReadiness(): PilotReadinessState {
   return {
     hasQrPlacement: false,
@@ -154,6 +197,17 @@ function createInitialPilotReadiness(): PilotReadinessState {
 function createInitialPilotRouteRecording(): PilotRouteRecordingState {
   return {
     stage: 'empty',
+  };
+}
+
+function parsePilotStateUpdate(value: unknown): PilotState {
+  if (!isRecord(value)) {
+    return createInitialPilotState();
+  }
+
+  return {
+    recording: parsePilotRouteRecordingUpdate(value.recording),
+    readiness: parsePilotReadinessUpdate(value.readiness),
   };
 }
 

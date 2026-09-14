@@ -157,6 +157,98 @@ describe('merchant admin dev server', () => {
 
       assert.equal(reloadedRecording.status, 200);
       assert.deepEqual(reloadedRecording.body, savedRecording.body);
+
+      const initialPilotState = await fetch(`${baseUrl}/api/dev/pilot-state`).then(
+        async (response) => ({
+          status: response.status,
+          body: await response.json() as {
+            ok?: boolean;
+            recording?: { stage?: string; routeId?: string };
+            readiness?: {
+              hasQrPlacement?: boolean;
+              hasStaffFallbackNote?: boolean;
+            };
+          },
+        }),
+      );
+
+      assert.equal(initialPilotState.status, 200);
+      assert.equal(initialPilotState.body.ok, true);
+      assert.equal(initialPilotState.body.recording?.stage, 'launch-ready');
+      assert.equal(initialPilotState.body.readiness?.hasQrPlacement, true);
+
+      const updatedPilotState = await fetch(`${baseUrl}/api/dev/pilot-state`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          recording: {
+            stage: 'active',
+            routeId: 'pilot-restroom-route',
+          },
+          readiness: {
+            hasQrPlacement: false,
+            hasStaffFallbackNote: true,
+            qaResults: {
+              'staff-fallback-note': {
+                summary: 'Verified staff fallback note',
+                recordedAt: '2026-09-01T10:16:00.000Z',
+              },
+            },
+          },
+        }),
+      }).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as {
+          ok?: boolean;
+          recording?: { stage?: string; routeId?: string; launchUrl?: string };
+          readiness?: {
+            hasQrPlacement?: boolean;
+            hasStaffFallbackNote?: boolean;
+            qaResults?: {
+              'staff-fallback-note'?: { recordedAt?: string };
+            };
+          };
+        },
+      }));
+
+      assert.equal(updatedPilotState.status, 200);
+      assert.equal(updatedPilotState.body.ok, true);
+      assert.deepEqual(updatedPilotState.body.recording, {
+        stage: 'active',
+        routeId: 'pilot-restroom-route',
+      });
+      assert.equal(updatedPilotState.body.readiness?.hasQrPlacement, false);
+      assert.equal(updatedPilotState.body.readiness?.hasStaffFallbackNote, true);
+      assert.equal(
+        updatedPilotState.body.readiness?.qaResults?.['staff-fallback-note']?.recordedAt,
+        '2026-09-01T10:16:00.000Z',
+      );
+
+      const recordingAfterPilotStateUpdate = await fetch(
+        `${baseUrl}/api/dev/pilot-route-recording`,
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as typeof savedRecording.body,
+      }));
+      const readinessAfterPilotStateUpdate = await fetch(
+        `${baseUrl}/api/dev/pilot-readiness`,
+      ).then(async (response) => ({
+        status: response.status,
+        body: await response.json() as typeof savedReadiness.body,
+      }));
+
+      assert.equal(recordingAfterPilotStateUpdate.status, 200);
+      assert.equal(recordingAfterPilotStateUpdate.body.stage, 'active');
+      assert.equal(
+        recordingAfterPilotStateUpdate.body.routeId,
+        'pilot-restroom-route',
+      );
+      assert.equal(readinessAfterPilotStateUpdate.status, 200);
+      assert.equal(readinessAfterPilotStateUpdate.body.hasQrPlacement, false);
+      assert.equal(
+        readinessAfterPilotStateUpdate.body.hasStaffFallbackNote,
+        true,
+      );
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error: Error | undefined) => {

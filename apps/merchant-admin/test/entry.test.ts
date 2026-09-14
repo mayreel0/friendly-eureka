@@ -230,6 +230,80 @@ describe('merchant admin browser entry', () => {
       launchUrl: 'http://127.0.0.1:4173/?token=test-token',
     });
   });
+
+  it('loads and saves the consolidated pilot state through the environment API', async () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+    const saves: unknown[] = [];
+
+    registerMerchantAdminElement({
+      customElements: registry,
+      HTMLElement: TestMerchantHTMLElement,
+      document,
+      loadPilotState: async () => ({
+        recording: {
+          stage: 'active',
+          routeId: 'pilot-restroom-route',
+        },
+        readiness: {
+          hasQrPlacement: true,
+          hasStaffFallbackNote: false,
+          qaResults: {
+            'place-qr': {
+              summary: 'Verified QR placed',
+              recordedAt: '2026-09-01T10:10:00.000Z',
+            },
+          },
+        },
+      }),
+      savePilotState: async (state) => {
+        saves.push(state);
+      },
+      now: () => '2026-09-01T10:20:00.000Z',
+    });
+
+    const MerchantAdminElement = registry.get('lechigo-merchant-admin');
+    assert.ok(MerchantAdminElement);
+
+    const element = new MerchantAdminElement() as unknown as TestMerchantHTMLElement & {
+      connectedCallback(): void;
+    };
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const root = element.shadowRoot;
+    assert.ok(root);
+    assert.match(root.textContent ?? '', /Route active/);
+    assert.match(
+      root.textContent ?? '',
+      /Verified QR placed at 2026-09-01T10:10:00.000Z/,
+    );
+
+    getActionButtons(root)[5]?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(saves.at(0), {
+      recording: {
+        stage: 'active',
+        routeId: 'pilot-restroom-route',
+        launchUrl: undefined,
+      },
+      readiness: {
+        hasQrPlacement: true,
+        hasStaffFallbackNote: true,
+        qaResults: {
+          'place-qr': {
+            summary: 'Verified QR placed',
+            recordedAt: '2026-09-01T10:10:00.000Z',
+          },
+          'staff-fallback-note': {
+            summary: 'Verified staff fallback note',
+            recordedAt: '2026-09-01T10:20:00.000Z',
+          },
+        },
+      },
+    });
+  });
 });
 
 function createTestDocument(): MerchantAdminDocument {
