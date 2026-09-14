@@ -137,7 +137,7 @@ export function applyLocalPilotRouteRecordingAction(
   state: PilotRouteRecordingScreenState,
   actionId: Exclude<
     PilotRouteRecordingScreenActionId,
-    'generate-guest-url' | 'record-follow-up'
+    'generate-guest-url' | 'record-follow-up' | 'complete-follow-up'
   >,
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
@@ -201,6 +201,23 @@ export function recordPilotFollowUp(
   return {
     ...state,
     followUps: [...state.followUps, followUp],
+  };
+}
+
+export function completePilotFollowUp(
+  state: PilotRouteRecordingScreenState,
+  followUpId: string,
+): PilotRouteRecordingScreenState {
+  return {
+    ...state,
+    followUps: state.followUps.map((followUp) =>
+      followUp.id === followUpId
+        ? {
+            ...followUp,
+            status: 'completed',
+          }
+        : followUp,
+    ),
   };
 }
 

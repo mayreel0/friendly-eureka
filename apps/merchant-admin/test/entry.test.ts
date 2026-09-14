@@ -454,6 +454,7 @@ describe('merchant admin browser entry', () => {
 
     assert.match(root.textContent ?? '', /Open follow-ups/);
     assert.match(root.textContent ?? '', /Complete pilot readiness/);
+    assert.match(root.textContent ?? '', /Mark done/);
     assert.deepEqual(saves.at(0), {
       recording: {
         stage: 'active',
@@ -483,6 +484,19 @@ describe('merchant admin browser entry', () => {
         },
       ],
     });
+
+    getActionButton(root, 'complete-follow-up')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.match(root.textContent ?? '', /completed/);
+    assert.equal(
+      root
+        .querySelectorAll('[data-follow-up-status]')
+        .at(0)
+        ?.getAttribute('data-follow-up-status'),
+      'completed',
+    );
+    assert.deepEqual((saves.at(1) as { followUps?: { status?: string }[] }).followUps?.[0]?.status, 'completed');
   });
 });
 

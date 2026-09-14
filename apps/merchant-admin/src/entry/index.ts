@@ -7,6 +7,7 @@ import {
 } from './api.ts';
 import {
   applyLocalPilotRouteRecordingAction,
+  completePilotFollowUp,
   createInitialPilotRouteRecordingScreenState,
   createInitialPilotState,
   isPilotReadinessAction,
@@ -23,6 +24,7 @@ import { renderPilotRouteRecordingScreen } from './view.ts';
 export type * from './types.ts';
 export {
   applyLocalPilotRouteRecordingAction,
+  completePilotFollowUp,
   createInitialPilotRouteRecordingScreenState,
   createInitialPilotState,
   createPilotRouteRecordingView,
@@ -70,20 +72,24 @@ export function registerMerchantAdminElement(
         const actionId = button.getAttribute(
           'data-action-id',
         ) as PilotRouteRecordingScreenActionId | null;
+        const followUpId = button.getAttribute('data-follow-up-id');
 
         if (!actionId || button.disabled) {
           continue;
         }
 
         button.addEventListener('click', () => {
-          void this.applyAction(actionId);
+          void this.applyAction(actionId, followUpId ?? undefined);
         });
       }
 
       root.replaceChildren(screen);
     }
 
-    private async applyAction(actionId: PilotRouteRecordingScreenActionId) {
+    private async applyAction(
+      actionId: PilotRouteRecordingScreenActionId,
+      followUpId?: string,
+    ) {
       if (actionId === 'generate-guest-url') {
         const guestSession = await generateGuestSession(environment);
         this.state = {
@@ -100,6 +106,13 @@ export function registerMerchantAdminElement(
 
       if (actionId === 'record-follow-up') {
         this.state = recordPilotFollowUp(this.state, environment.now);
+        this.render();
+        await savePilotState(environment, this.state).catch(() => undefined);
+        return;
+      }
+
+      if (actionId === 'complete-follow-up' && followUpId) {
+        this.state = completePilotFollowUp(this.state, followUpId);
         this.render();
         await savePilotState(environment, this.state).catch(() => undefined);
         return;
