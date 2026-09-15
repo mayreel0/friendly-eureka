@@ -145,6 +145,7 @@ async function savePilotReadiness(
     hasQrPlacement: state.hasQrPlacement,
     hasStaffFallbackNote: state.hasStaffFallbackNote,
     qaResults: state.qaResults,
+    qrPlacementEvidence: state.qrPlacementEvidence,
   };
 
   if (environment.saveReadiness) {

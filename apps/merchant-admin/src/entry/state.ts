@@ -3,6 +3,7 @@ import type {
   PilotFollowUpAction,
   PilotFollowUpSnapshot,
   PilotImplementationTarget,
+  PilotQrPlacementEvidence,
   PilotReadinessApiState,
   PilotRouteRecordingApiState,
   PilotRouteRecordingScreenActionId,
@@ -102,6 +103,7 @@ export function createPilotRouteRecordingView(
     launchUrl: state.launchUrl,
     nextTarget,
     primaryActions,
+    qrPlacementEvidence: state.qrPlacementEvidence,
     followUps: state.followUps,
     openFollowUps,
     completedFollowUps,
@@ -131,6 +133,13 @@ export function createPilotRouteRecordingView(
         id: 'mark-qr-placed',
         label: 'Confirm QR placed',
         enabled: state.stage === 'active' && !state.hasQrPlacement,
+      },
+      {
+        id: 'record-qr-placement-evidence',
+        label: 'Save QR evidence',
+        enabled:
+          (state.stage === 'active' || state.stage === 'launch-ready') &&
+          !state.qrPlacementEvidence,
       },
       {
         id: 'mark-staff-fallback-ready',
@@ -178,7 +187,7 @@ function createPrimaryNextTargetActions(targetId: PilotImplementationTarget['id'
 
   if (targetId === 'complete-pilot-readiness') {
     return [
-      'mark-qr-placed',
+      'record-qr-placement-evidence',
       'mark-staff-fallback-ready',
     ] satisfies PilotRouteRecordingScreenActionId[];
   }
@@ -194,7 +203,10 @@ export function applyLocalPilotRouteRecordingAction(
   state: PilotRouteRecordingScreenState,
   actionId: Exclude<
     PilotRouteRecordingScreenActionId,
-    'generate-guest-url' | 'record-follow-up' | 'complete-follow-up'
+    | 'generate-guest-url'
+    | 'record-follow-up'
+    | 'complete-follow-up'
+    | 'record-qr-placement-evidence'
   >,
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
@@ -270,6 +282,36 @@ export function recordPilotFollowUp(
   };
 }
 
+export function recordQrPlacementEvidence(
+  state: PilotRouteRecordingScreenState,
+  evidence: Omit<PilotQrPlacementEvidence, 'recordedAt'>,
+  now: (() => string) | undefined = defaultNow,
+): PilotRouteRecordingScreenState {
+  const recordedAt = now();
+  const location = evidence.location.trim() || 'QR placement location not specified';
+  const orientation =
+    evidence.orientation.trim() || 'QR orientation not specified';
+  const note = evidence.note.trim() || 'No additional QR placement note';
+
+  return {
+    ...state,
+    hasQrPlacement: true,
+    qrPlacementEvidence: {
+      location,
+      orientation,
+      note,
+      recordedAt,
+    },
+    qaResults: {
+      ...state.qaResults,
+      'place-qr': {
+        summary: `QR placed at ${location}; ${orientation}`,
+        recordedAt,
+      },
+    },
+  };
+}
+
 export function completePilotFollowUp(
   state: PilotRouteRecordingScreenState,
   followUpId: string,
@@ -292,6 +334,7 @@ export function createInitialPilotReadiness(): PilotReadinessApiState {
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
     qaResults: {},
+    qrPlacementEvidence: undefined,
   };
 }
 
@@ -316,6 +359,7 @@ export function toPilotReadinessApiState(
     hasQrPlacement: state.hasQrPlacement,
     hasStaffFallbackNote: state.hasStaffFallbackNote,
     qaResults: state.qaResults,
+    qrPlacementEvidence: state.qrPlacementEvidence,
   };
 }
 
@@ -334,7 +378,8 @@ export function isPilotReadinessAction(
 ) {
   return (
     actionId === 'mark-qr-placed' ||
-    actionId === 'mark-staff-fallback-ready'
+    actionId === 'mark-staff-fallback-ready' ||
+    actionId === 'record-qr-placement-evidence'
   );
 }
 
@@ -358,6 +403,7 @@ function toPilotFollowUpSnapshot(
     hasQrPlacement: state.hasQrPlacement,
     hasStaffFallbackNote: state.hasStaffFallbackNote,
     qaResults: state.qaResults,
+    qrPlacementEvidence: state.qrPlacementEvidence,
   };
 }
 
