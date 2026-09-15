@@ -13,7 +13,8 @@ export type PilotRouteRecordingScreenActionId =
   | 'mark-staff-fallback-ready'
   | 'generate-guest-url'
   | 'record-follow-up'
-  | 'complete-follow-up';
+  | 'complete-follow-up'
+  | 'record-qr-placement-evidence';
 
 export type PilotRouteRecordingScreenState = {
   stage: PilotRouteRecordingScreenStage;
@@ -21,6 +22,7 @@ export type PilotRouteRecordingScreenState = {
   hasStaffFallbackNote: boolean;
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
   followUps: PilotFollowUpAction[];
+  qrPlacementEvidence?: PilotQrPlacementEvidence;
   routeId?: string;
   launchUrl?: string;
 };
@@ -54,6 +56,7 @@ export type PilotFollowUpSnapshot = {
   hasQrPlacement: boolean;
   hasStaffFallbackNote: boolean;
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+  qrPlacementEvidence?: PilotQrPlacementEvidence;
   routeId?: string;
   launchUrl?: string;
 };
@@ -69,10 +72,18 @@ export type PilotQaResultNote = {
   recordedAt: string;
 };
 
+export type PilotQrPlacementEvidence = {
+  location: string;
+  orientation: string;
+  note: string;
+  recordedAt: string;
+};
+
 export type PilotReadinessApiState = {
   hasQrPlacement: boolean;
   hasStaffFallbackNote: boolean;
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+  qrPlacementEvidence?: PilotQrPlacementEvidence;
 };
 
 export type PilotRouteRecordingApiState = {
@@ -132,6 +143,7 @@ export type MerchantAdminDomElement = {
   textContent: string | null;
   disabled: boolean;
   href: string;
+  value: string;
   append(...nodes: MerchantAdminDomElement[]): void;
   appendChild(node: MerchantAdminDomElement): MerchantAdminDomElement;
   setAttribute(name: string, value: string): void;

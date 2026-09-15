@@ -13,6 +13,7 @@ import {
   isPilotReadinessAction,
   isPilotRouteRecordingAction,
   recordPilotFollowUp,
+  recordQrPlacementEvidence,
 } from './state.ts';
 import type {
   MerchantAdminElementConstructor,
@@ -32,6 +33,7 @@ export {
   isPilotReadinessAction,
   isPilotRouteRecordingAction,
   recordPilotFollowUp,
+  recordQrPlacementEvidence,
 } from './state.ts';
 export {
   generateGuestSession,
@@ -79,7 +81,10 @@ export function registerMerchantAdminElement(
         }
 
         button.addEventListener('click', () => {
-          void this.applyAction(actionId, followUpId ?? undefined);
+          void this.applyAction(actionId, {
+            followUpId: followUpId ?? undefined,
+            qrPlacementEvidence: readQrPlacementEvidence(screen),
+          });
         });
       }
 
@@ -88,7 +93,14 @@ export function registerMerchantAdminElement(
 
     private async applyAction(
       actionId: PilotRouteRecordingScreenActionId,
-      followUpId?: string,
+      options: {
+        followUpId?: string;
+        qrPlacementEvidence: {
+          location: string;
+          orientation: string;
+          note: string;
+        };
+      },
     ) {
       if (actionId === 'generate-guest-url') {
         const guestSession = await generateGuestSession(environment);
@@ -111,9 +123,22 @@ export function registerMerchantAdminElement(
         return;
       }
 
+      if (actionId === 'record-qr-placement-evidence') {
+        this.state = recordQrPlacementEvidence(
+          this.state,
+          options.qrPlacementEvidence,
+          environment.now,
+        );
+        this.render();
+        await savePilotReadinessState(environment, this.state).catch(
+          () => undefined,
+        );
+        return;
+      }
+
       if (actionId === 'complete-follow-up') {
-        if (followUpId) {
-          this.state = completePilotFollowUp(this.state, followUpId);
+        if (options.followUpId) {
+          this.state = completePilotFollowUp(this.state, options.followUpId);
           this.render();
           await savePilotState(environment, this.state).catch(() => undefined);
         }
@@ -162,4 +187,18 @@ export function registerMerchantAdminElement(
 
   environment.customElements.define(tagName, LechigoMerchantAdminElement);
   return LechigoMerchantAdminElement;
+}
+
+function readQrPlacementEvidence(screen: {
+  querySelectorAll(selector: string): {
+    value: string;
+  }[];
+}) {
+  return {
+    location:
+      screen.querySelectorAll('[data-qr-placement-location]').at(0)?.value ?? '',
+    orientation:
+      screen.querySelectorAll('[data-qr-placement-orientation]').at(0)?.value ?? '',
+    note: screen.querySelectorAll('[data-qr-placement-note]').at(0)?.value ?? '',
+  };
 }

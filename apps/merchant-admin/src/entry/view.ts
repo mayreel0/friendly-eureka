@@ -115,6 +115,24 @@ export function renderPilotRouteRecordingScreen(
       background: #eceff3;
     }
 
+    input,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 40px;
+      margin: 4px 0 12px;
+      padding: 8px 10px;
+      border: 1px solid #b9c0ca;
+      border-radius: 6px;
+      color: #17202a;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
     ol {
       display: grid;
       gap: 8px;
@@ -218,6 +236,54 @@ export function renderPilotRouteRecordingScreen(
   );
   checklistPanel.append(checklist);
 
+  const qrEvidencePanel = createDashboardPanel(
+    document,
+    'qr-placement-evidence',
+    'QR placement evidence',
+  );
+  const qrEvidence = view.qrPlacementEvidence;
+  qrEvidencePanel.append(
+    createEvidenceField(
+      document,
+      'Location',
+      'data-qr-placement-location',
+      qrEvidence?.location ?? '',
+    ),
+    createEvidenceField(
+      document,
+      'Orientation',
+      'data-qr-placement-orientation',
+      qrEvidence?.orientation ?? '',
+    ),
+    createEvidenceField(
+      document,
+      'Note',
+      'data-qr-placement-note',
+      qrEvidence?.note ?? '',
+      'textarea',
+    ),
+  );
+
+  if (qrEvidence) {
+    const qrEvidenceSummary = document.createElement('p');
+    qrEvidenceSummary.setAttribute('data-qr-placement-evidence-summary', 'saved');
+    qrEvidenceSummary.textContent = `Saved ${qrEvidence.recordedAt}: ${qrEvidence.location}; ${qrEvidence.orientation}; ${qrEvidence.note}`;
+    qrEvidencePanel.append(qrEvidenceSummary);
+  }
+
+  const qrEvidenceAction = view.actions.find(
+    (action) => action.id === 'record-qr-placement-evidence',
+  );
+
+  if (qrEvidenceAction) {
+    const button = document.createElement('button');
+    button.setAttribute('type', 'button');
+    button.setAttribute('data-action-id', qrEvidenceAction.id);
+    button.textContent = qrEvidenceAction.label;
+    button.disabled = !qrEvidenceAction.enabled;
+    qrEvidencePanel.append(button);
+  }
+
   const launch = document.createElement('a');
   const launchUrl = toGuestLaunchUrl(view.launchUrl, options.guestOrigin);
   launch.setAttribute('data-launch-url', 'guest-webxr');
@@ -307,7 +373,13 @@ export function renderPilotRouteRecordingScreen(
 
   const primaryColumn = document.createElement('div');
   primaryColumn.setAttribute('data-dashboard-column', 'primary');
-  primaryColumn.append(routePanel, targetPanel, actionsPanel, checklistPanel);
+  primaryColumn.append(
+    routePanel,
+    targetPanel,
+    actionsPanel,
+    checklistPanel,
+    qrEvidencePanel,
+  );
 
   const secondaryColumn = document.createElement('div');
   secondaryColumn.setAttribute('data-dashboard-column', 'secondary');
@@ -319,6 +391,25 @@ export function renderPilotRouteRecordingScreen(
 
   section.append(style, heading, summary, progress, progressNextTarget, dashboard);
   return section;
+}
+
+function createEvidenceField(
+  document: MerchantAdminDocument,
+  labelText: string,
+  attributeName: string,
+  value: string,
+  elementName = 'input',
+) {
+  const container = document.createElement('p');
+  container.textContent = labelText;
+
+  const field = document.createElement(elementName);
+  field.setAttribute(attributeName, 'true');
+  field.setAttribute('aria-label', labelText);
+  field.value = value;
+  container.appendChild(field);
+
+  return container;
 }
 
 function createDashboardPanel(

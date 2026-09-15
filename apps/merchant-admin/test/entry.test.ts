@@ -124,12 +124,14 @@ describe('merchant admin browser entry', () => {
     assert.match(screen.textContent ?? '', /Next target/);
     assert.match(screen.textContent ?? '', /Record pilot route/);
     assert.match(screen.textContent ?? '', /Pilot readiness/);
+    assert.match(screen.textContent ?? '', /QR placement evidence/);
     assert.match(screen.textContent ?? '', /Guest launch/);
     assert.match(screen.textContent ?? '', /Open follow-ups/);
-    assert.equal(screen.querySelectorAll('[data-dashboard-panel]').length, 6);
+    assert.equal(screen.querySelectorAll('[data-dashboard-panel]').length, 7);
     assert.equal(screen.querySelectorAll('[data-progress-summary]').length, 1);
-    assert.equal(screen.querySelectorAll('[data-action-id]').length, 8);
+    assert.equal(screen.querySelectorAll('[data-action-id]').length, 10);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
+    assert.equal(screen.querySelectorAll('[data-qr-placement-location]').length, 1);
     assert.match(screen.textContent ?? '', /Pending: Record route/);
     assert.match(screen.textContent ?? '', /Pending: Place QR/);
     assert.equal(
@@ -284,6 +286,7 @@ describe('merchant admin browser entry', () => {
           recordedAt: '2026-09-01T10:20:00.000Z',
         },
       },
+      qrPlacementEvidence: undefined,
     });
   });
 
@@ -414,6 +417,87 @@ describe('merchant admin browser entry', () => {
             recordedAt: '2026-09-01T10:20:00.000Z',
           },
         },
+        qrPlacementEvidence: undefined,
+      },
+      followUps: [],
+    });
+  });
+
+  it('records physical QR placement evidence through the dashboard', async () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+    const saves: unknown[] = [];
+
+    registerMerchantAdminElement({
+      customElements: registry,
+      HTMLElement: TestMerchantHTMLElement,
+      document,
+      loadPilotState: async () => ({
+        recording: {
+          stage: 'active',
+          routeId: 'pilot-restroom-route',
+        },
+        readiness: {
+          hasQrPlacement: false,
+          hasStaffFallbackNote: true,
+          qaResults: {},
+        },
+        followUps: [],
+      }),
+      savePilotState: async (state) => {
+        saves.push(state);
+      },
+      now: () => '2026-09-01T10:40:00.000Z',
+    });
+
+    const MerchantAdminElement = registry.get('lechigo-merchant-admin');
+    assert.ok(MerchantAdminElement);
+
+    const element = new MerchantAdminElement() as unknown as TestMerchantHTMLElement & {
+      connectedCallback(): void;
+    };
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const root = element.shadowRoot;
+    assert.ok(root);
+    assert.match(root.textContent ?? '', /QR placement evidence/);
+    assert.match(root.textContent ?? '', /Save QR evidence/);
+    assert.equal(getActionButton(root, 'generate-guest-url')?.disabled, true);
+
+    getField(root, 'data-qr-placement-location').value = 'Front counter stand';
+    getField(root, 'data-qr-placement-orientation').value =
+      'Faces guests entering from the cafe door';
+    getField(root, 'data-qr-placement-note').value =
+      'Eye-level placard with clear restroom arrow';
+    getActionButton(root, 'record-qr-placement-evidence')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.match(root.textContent ?? '', /Saved 2026-09-01T10:40:00.000Z/);
+    assert.match(root.textContent ?? '', /Front counter stand/);
+    assert.equal(getActionButton(root, 'generate-guest-url')?.disabled, false);
+    assert.deepEqual(saves.at(0), {
+      recording: {
+        stage: 'active',
+        routeId: 'pilot-restroom-route',
+        launchUrl: undefined,
+      },
+      readiness: {
+        hasQrPlacement: true,
+        hasStaffFallbackNote: true,
+        qaResults: {
+          'place-qr': {
+            summary:
+              'QR placed at Front counter stand; Faces guests entering from the cafe door',
+            recordedAt: '2026-09-01T10:40:00.000Z',
+          },
+        },
+        qrPlacementEvidence: {
+          location: 'Front counter stand',
+          orientation: 'Faces guests entering from the cafe door',
+          note: 'Eye-level placard with clear restroom arrow',
+          recordedAt: '2026-09-01T10:40:00.000Z',
+        },
       },
       followUps: [],
     });
@@ -477,6 +561,7 @@ describe('merchant admin browser entry', () => {
         hasQrPlacement: false,
         hasStaffFallbackNote: true,
         qaResults: {},
+        qrPlacementEvidence: undefined,
       },
       followUps: [
         {
@@ -492,6 +577,7 @@ describe('merchant admin browser entry', () => {
             hasQrPlacement: false,
             hasStaffFallbackNote: true,
             qaResults: {},
+            qrPlacementEvidence: undefined,
           },
         },
       ],
@@ -544,6 +630,14 @@ function getActionButton(root: TestElement, actionId: string) {
   );
 }
 
+function getField(root: TestElement, attributeName: string) {
+  const field = root.querySelectorAll(`[${attributeName}]`).at(0) as
+    | TestElement
+    | undefined;
+  assert.ok(field);
+  return field;
+}
+
 class TestElement implements MerchantAdminDomElement {
   private readonly attributes = new Map<string, string>();
   private readonly children: MerchantAdminDomElement[] = [];
@@ -551,6 +645,7 @@ class TestElement implements MerchantAdminDomElement {
   private ownTextContent: string | null = null;
   disabled = false;
   href = '';
+  value = '';
   readonly tagName: string;
 
   constructor(tagName: string) {

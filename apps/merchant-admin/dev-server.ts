@@ -9,6 +9,7 @@ import { deriveNextPilotImplementationTarget } from './src/entry/index.ts';
 import type {
   PilotFollowUpAction,
   PilotQaResultNote,
+  PilotQrPlacementEvidence,
   PilotReadinessChecklistId,
   PilotRouteRecordingScreenState,
   PilotRouteRecordingScreenStage,
@@ -175,6 +176,7 @@ type PilotReadinessState = {
   hasQrPlacement: boolean;
   hasStaffFallbackNote: boolean;
   qaResults: Partial<Record<PilotReadinessChecklistId, PilotQaResultNote>>;
+  qrPlacementEvidence?: PilotQrPlacementEvidence;
 };
 
 type PilotRouteRecordingState = {
@@ -212,6 +214,7 @@ function createInitialPilotReadiness(): PilotReadinessState {
     hasQrPlacement: false,
     hasStaffFallbackNote: false,
     qaResults: {},
+    qrPlacementEvidence: undefined,
   };
 }
 
@@ -280,6 +283,7 @@ function parsePilotReadinessUpdate(value: unknown): PilotReadinessState {
     hasQrPlacement: value.hasQrPlacement === true,
     hasStaffFallbackNote: value.hasStaffFallbackNote === true,
     qaResults: parseQaResults(value.qaResults),
+    qrPlacementEvidence: parseQrPlacementEvidence(value.qrPlacementEvidence),
   };
 }
 
@@ -336,6 +340,28 @@ function parseQaResultNote(value: unknown) {
 
   return {
     summary: value.summary,
+    recordedAt: value.recordedAt,
+  };
+}
+
+function parseQrPlacementEvidence(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  if (
+    typeof value.location !== 'string' ||
+    typeof value.orientation !== 'string' ||
+    typeof value.note !== 'string' ||
+    typeof value.recordedAt !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return {
+    location: value.location,
+    orientation: value.orientation,
+    note: value.note,
     recordedAt: value.recordedAt,
   };
 }
