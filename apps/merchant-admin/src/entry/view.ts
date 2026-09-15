@@ -293,6 +293,13 @@ export function renderPilotRouteRecordingScreen(
   const launchPanel = createDashboardPanel(document, 'guest-launch', 'Guest launch');
   launchPanel.append(launch);
 
+  if (launchUrl) {
+    const copyTarget = document.createElement('p');
+    copyTarget.setAttribute('data-launch-copy-url', 'guest-webxr');
+    copyTarget.textContent = launchUrl;
+    launchPanel.append(copyTarget);
+  }
+
   const target = document.createElement('p');
   target.setAttribute('data-next-target-id', view.nextTarget.id);
   target.textContent = `${view.nextTarget.label}: ${view.nextTarget.detail}`;
