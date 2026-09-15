@@ -86,6 +86,15 @@ function handleApiRequest(input: {
     return;
   }
 
+  if (input.requestUrl.pathname === '/api/dev/guest-session-url') {
+    writeText(
+      input.response,
+      200,
+      `/?token=${encodeURIComponent(input.api.token)}`,
+    );
+    return;
+  }
+
   if (input.requestUrl.pathname === '/api/guest/routes') {
     const token = input.requestUrl.searchParams.get('token');
 
@@ -142,6 +151,20 @@ function writeJson(
     'content-type': 'application/json; charset=utf-8',
   });
   response.end(JSON.stringify(body));
+}
+
+function writeText(
+  response: {
+    writeHead(statusCode: number, headers?: Record<string, string>): void;
+    end(chunk?: string): void;
+  },
+  status: number,
+  body: string,
+) {
+  response.writeHead(status, {
+    'content-type': 'text/plain; charset=utf-8',
+  });
+  response.end(body);
 }
 
 function parseRequestPath(url: string | undefined) {
