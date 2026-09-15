@@ -30,12 +30,12 @@ The remaining meaningful gaps are physical pilot evidence:
 
 | Priority | Item | Why it remains |
 |---|---|---|
-| P1 | Capture physical QR placement metadata from a real venue. | The product can store QR placement metadata, but current evidence is still local/manual simulation. |
+| P1 | Capture physical QR placement metadata from a real venue. | Follow `docs/physical-qr-placement-runbook.md`; current evidence is still local/manual simulation. |
 | P2 | Record iOS App Clip handoff status. | Requires Apple signing and a physical iPhone. |
 
 ## Next Implementation Candidates
 
 | Candidate | Rationale |
 |---|---|
-| Physical QR placement runbook | Turns the remaining P1 venue-evidence gap into a repeatable manual procedure. |
+| Physical QR placement run | Use `docs/physical-qr-placement-runbook.md` to capture real venue evidence when a physical pilot venue is available. |
 | iOS App Clip readiness stub or checklist | Keeps the P2 iOS gap explicit until signing/device work is available. |
