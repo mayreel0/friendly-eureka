@@ -1,29 +1,33 @@
 import { createGuestWebxrDevServer } from '../apps/guest-webxr/dev-server.ts';
 import { createMerchantAdminDevServer } from '../apps/merchant-admin/dev-server.ts';
+import { pathToFileURL } from 'node:url';
 
 const host = process.env.HOST ?? '127.0.0.1';
 const guestPort = Number(process.env.GUEST_PORT ?? 4173);
 const merchantPort = Number(process.env.MERCHANT_PORT ?? 4174);
 const guestOrigin = `http://${host}:${guestPort}`;
+const merchantOrigin = `http://${host}:${merchantPort}`;
 
-const guestServer = createGuestWebxrDevServer();
-const merchantServer = createMerchantAdminDevServer({ guestOrigin });
+if (isMainModule()) {
+  const guestServer = createGuestWebxrDevServer();
+  const merchantServer = createMerchantAdminDevServer({ guestOrigin });
 
-await Promise.all([
-  listen(guestServer, guestPort, host),
-  listen(merchantServer, merchantPort, host),
-]);
+  await Promise.all([
+    listen(guestServer, guestPort, host),
+    listen(merchantServer, merchantPort, host),
+  ]);
 
-console.log(`Guest WebXR dev shell: ${guestOrigin}/`);
-console.log(`Merchant admin dev shell: http://${host}:${merchantPort}/`);
-console.log('Pilot flow: open merchant admin, generate the guest URL, then open it.');
+  for (const line of createDevPilotInstructions({ guestOrigin, merchantOrigin })) {
+    console.log(line);
+  }
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    void closeAll().finally(() => {
-      process.exit(0);
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      void closeAll([merchantServer, guestServer]).finally(() => {
+        process.exit(0);
+      });
     });
-  });
+  }
 }
 
 function listen(server, port, hostname) {
@@ -32,8 +36,8 @@ function listen(server, port, hostname) {
   });
 }
 
-async function closeAll() {
-  await Promise.all([close(merchantServer), close(guestServer)]);
+async function closeAll(servers) {
+  await Promise.all(servers.map((server) => close(server)));
 }
 
 function close(server) {
@@ -47,4 +51,18 @@ function close(server) {
       resolve();
     });
   });
+}
+
+export function createDevPilotInstructions(input) {
+  return [
+    `Guest WebXR dev shell: ${input.guestOrigin}/`,
+    `Merchant admin dev shell: ${input.merchantOrigin}/`,
+    `Dev guest session JSON: ${input.guestOrigin}/api/dev/guest-session`,
+    `Android tunnel command: cloudflared tunnel --url ${input.guestOrigin}`,
+    'Pilot flow: open merchant admin, generate the guest URL, then open it on Android Chrome.',
+  ];
+}
+
+function isMainModule() {
+  return import.meta.url === pathToFileURL(process.argv[1]).href;
 }
