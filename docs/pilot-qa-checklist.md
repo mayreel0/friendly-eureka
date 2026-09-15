@@ -3,11 +3,13 @@
 Use this checklist with `plans/2026-09-01-001-toilet-ar-navigation-pilot-qa-plan.md`.
 Each QA run should create one result file under `docs/pilot-qa-runs/` from the template below.
 Current checklist coverage is summarized in `docs/pilot-qa-coverage-status.md`.
+Physical QR placement evidence should follow `docs/physical-qr-placement-runbook.md`.
 
 ## Run Setup
 
 - [ ] Confirm the branch is `main` and matches `origin/main`.
 - [ ] Confirm the pilot route scope is one store and one route.
+- [ ] Use `docs/physical-qr-placement-runbook.md` when recording a real QR placement run.
 - [ ] Record tester, run date, device/browser, and route identifiers.
 - [ ] Keep raw restroom passwords out of logs, screenshots, and shared notes.
 - [ ] Record screenshots or command output for every failed or blocked item.
