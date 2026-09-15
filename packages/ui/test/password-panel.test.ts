@@ -34,6 +34,22 @@ describe('guest password panel state', () => {
     );
   });
 
+  it('includes guest session expiry when available', () => {
+    assert.deepEqual(
+      resolvePasswordPanelState({
+        canViewPassword: true,
+        expiresAt: '2026-09-01T12:20:00.000Z',
+        password: '2468',
+        source: 'wifi',
+      }),
+      {
+        state: 'revealed',
+        message: 'Restroom code available. Session expires at 2026-09-01T12:20:00.000Z.',
+        visiblePassword: '2468',
+      },
+    );
+  });
+
   it('shows an unavailable state when access is granted but no code exists', () => {
     assert.deepEqual(
       resolvePasswordPanelState({
