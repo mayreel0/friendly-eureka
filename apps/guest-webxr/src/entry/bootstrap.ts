@@ -1,5 +1,6 @@
 import {
   type ArSupport,
+  detectArSupport,
   type GuestEntryElementConfig,
   type GuestEntryElementEnvironment,
   type NetworkState,
@@ -28,6 +29,16 @@ export type GuestBrowserRouteLoader = (input: {
   token: string;
 }) => Promise<GuestBrowserRouteLoadResult>;
 
+export type GuestBrowserNavigator = {
+  platform?: string;
+  userAgent?: string;
+  xr?: {
+    isSessionSupported(mode: 'immersive-ar'): Promise<boolean>;
+  };
+};
+
+export type GuestBrowserArSupportDetector = () => ArSupport | Promise<ArSupport>;
+
 export type GuestBrowserEnvironment = Omit<
   GuestEntryElementEnvironment,
   'document'
@@ -35,10 +46,12 @@ export type GuestBrowserEnvironment = Omit<
   document: GuestBrowserDocument;
   fetch?: typeof fetch;
   location?: GuestBrowserLocation;
+  navigator?: GuestBrowserNavigator;
 };
 
 export type GuestBrowserBootstrapOptions = {
   arSupport?: ArSupport;
+  arSupportDetector?: GuestBrowserArSupportDetector;
   currentAnchorId?: string;
   driftMeters?: number;
   endpoint?: string;
@@ -99,12 +112,14 @@ export function bootstrapGuestEntry(
       endpoint: bootstrapOptions.endpoint,
       fetch: environment.fetch,
     });
-  const routeLoad = routeLoader({ token })
-    .then((result) => {
+  const arSupportLoad = resolveBrowserArSupport(environment, bootstrapOptions);
+  const routeLoad = Promise.all([routeLoader({ token }), arSupportLoad])
+    .then(([result, arSupport]) => {
+      const detectedConfig = { ...pendingConfig, arSupport };
       host.configure(
         result.ok
-          ? { ...pendingConfig, route: result.route }
-          : { ...pendingConfig, routeLoadError: result.error },
+          ? { ...detectedConfig, route: result.route }
+          : { ...detectedConfig, routeLoadError: result.error },
       );
       return result;
     })
@@ -129,6 +144,64 @@ export function parseGuestSessionToken(location: GuestBrowserLocation) {
     readTokenFromParams(location.search) ??
     readTokenFromParams(location.hash.replace(/^#/, '?'))
   );
+}
+
+export async function detectBrowserArSupport(
+  navigator: GuestBrowserNavigator | undefined,
+): Promise<ArSupport> {
+  const platform = classifyBrowserPlatform(navigator);
+  const xrAvailable = Boolean(navigator?.xr);
+  const immersiveArSupported = xrAvailable
+    ? await navigator?.xr
+        ?.isSessionSupported('immersive-ar')
+        .catch(() => false)
+    : false;
+
+  return detectArSupport({
+    webglAvailable: immersiveArSupported === true,
+    xrAvailable,
+    immersiveArSupported: immersiveArSupported === true,
+    platform,
+  });
+}
+
+function resolveBrowserArSupport(
+  environment: GuestBrowserEnvironment,
+  options: GuestBrowserBootstrapOptions,
+): Promise<ArSupport> {
+  if (options.arSupport) {
+    return Promise.resolve(options.arSupport);
+  }
+
+  if (options.arSupportDetector) {
+    return Promise.resolve(options.arSupportDetector()).catch(() => 'manual');
+  }
+
+  return detectBrowserArSupport(environment.navigator);
+}
+
+function classifyBrowserPlatform(
+  navigator: GuestBrowserNavigator | undefined,
+): 'ios' | 'android' | 'desktop' | 'unknown' {
+  const fingerprint = `${navigator?.platform ?? ''} ${navigator?.userAgent ?? ''}`.toLowerCase();
+
+  if (fingerprint.includes('android')) {
+    return 'android';
+  }
+
+  if (
+    fingerprint.includes('iphone') ||
+    fingerprint.includes('ipad') ||
+    fingerprint.includes('ipod')
+  ) {
+    return 'ios';
+  }
+
+  if (fingerprint.includes('mac') || fingerprint.includes('win') || fingerprint.includes('linux')) {
+    return 'desktop';
+  }
+
+  return 'unknown';
 }
 
 export function createHttpGuestRouteLoader(input: {
@@ -256,5 +329,6 @@ if (
     document: browserGlobal.document,
     fetch: browserGlobal.fetch,
     location: browserGlobal.location,
+    navigator: browserGlobal.navigator,
   });
 }
