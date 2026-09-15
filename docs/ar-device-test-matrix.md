@@ -2,7 +2,7 @@
 
 | Surface | Device / browser | Expected result | Status | Notes |
 |---|---|---|---|---|
-| iOS App Clip ARKit | TBD physical iPhone | QR invocation opens App Clip and starts ARKit tracking | Not run | Requires Apple signing and physical device; not run in `docs/pilot-qa-runs/2026-09-15-manual-pilot-readiness.md` |
+| iOS App Clip ARKit | No physical iPhone available | QR invocation opens App Clip and starts ARKit tracking | Blocked | Requires Apple signing and a physical iPhone; current pilot tester can only run Android device checks. |
 | Android Chrome WebXR | Galaxy Z Flip7 / Android 16; Chrome 152.0.7977.82 | WebXR support detection reports AR availability | Pass | WebXR availability reported `available`, and the guest route screen rendered normally through a Cloudflare quick tunnel; captured in `docs/pilot-qa-runs/2026-09-15-manual-pilot-readiness.md` |
 | Guest fallback | Desktop or unsupported mobile browser | Non-AR landmark steps are shown | Automated | Covered by state and DOM-shaped render smoke in `apps/guest-webxr/test/entry.test.ts` |
 | AR recovery / corrupt anchors | Local Node.js entry contract | Recovery and generic fallback guidance are returned for limited tracking, excessive drift, and unusable anchor data | Automated | Covered by `apps/guest-webxr/test/entry.test.ts` and recorded in `docs/pilot-qa-runs/2026-09-16-guest-ar-recovery-fallback-dry-run.md` |
