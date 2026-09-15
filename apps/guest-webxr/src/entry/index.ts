@@ -135,6 +135,14 @@ export function buildArGuidance(input: {
   trackingConfidence: TrackingConfidence;
   driftMeters: number;
 }) {
+  if (!hasUsableGuidanceGeometry(input.route, input.currentAnchorId)) {
+    return {
+      mode: 'fallback',
+      instruction: 'Follow posted signs or ask staff for restroom directions.',
+      nextAnchorId: undefined,
+    };
+  }
+
   const progress = assessProgress({
     route: input.route,
     currentAnchorId: input.currentAnchorId,
@@ -159,6 +167,22 @@ export function buildArGuidance(input: {
     instruction: segment?.instruction ?? 'Continue to the restroom.',
     nextAnchorId: segment?.toAnchorId ?? input.route.anchors.at(-1)?.id,
   };
+}
+
+function hasUsableGuidanceGeometry(
+  route: SerializedRoute,
+  currentAnchorId: string,
+) {
+  if (!route.anchors.some((anchor) => anchor.id === currentAnchorId)) {
+    return false;
+  }
+
+  const anchorIds = new Set(route.anchors.map((anchor) => anchor.id));
+
+  return route.segments.every(
+    (segment) =>
+      anchorIds.has(segment.fromAnchorId) && anchorIds.has(segment.toAnchorId),
+  );
 }
 
 export function renderGuestFallbackScreen(
