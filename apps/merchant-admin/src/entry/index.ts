@@ -111,10 +111,12 @@ export function registerMerchantAdminElement(
         return;
       }
 
-      if (actionId === 'complete-follow-up' && followUpId) {
-        this.state = completePilotFollowUp(this.state, followUpId);
-        this.render();
-        await savePilotState(environment, this.state).catch(() => undefined);
+      if (actionId === 'complete-follow-up') {
+        if (followUpId) {
+          this.state = completePilotFollowUp(this.state, followUpId);
+          this.render();
+          await savePilotState(environment, this.state).catch(() => undefined);
+        }
         return;
       }
 
