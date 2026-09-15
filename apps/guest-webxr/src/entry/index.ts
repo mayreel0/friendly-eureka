@@ -187,6 +187,21 @@ export function summarizeRoute(route: SerializedRoute) {
   };
 }
 
+export function summarizeRouteSteps(route: SerializedRoute) {
+  const anchorsById = new Map(route.anchors.map((anchor) => [anchor.id, anchor]));
+
+  return route.segments.map((segment) => {
+    const toAnchor = anchorsById.get(segment.toAnchorId);
+
+    return {
+      segmentId: segment.id,
+      instruction: segment.instruction,
+      distanceLabel: `${segment.distanceMeters} meters`,
+      landmarkLabel: toAnchor?.label ?? segment.toAnchorId,
+    };
+  });
+}
+
 function hasUsableGuidanceGeometry(
   route: SerializedRoute,
   currentAnchorId: string,
@@ -266,7 +281,18 @@ export function renderGuestRouteScreen(
     section.append(heading, destination, distance, firstStep, instruction);
   }
 
+  const steps = document.createElement('ol');
+  steps.setAttribute('data-route-steps', 'true');
+
+  for (const step of summarizeRouteSteps(input.route)) {
+    const item = document.createElement('li');
+    item.setAttribute('data-route-step-id', step.segmentId);
+    item.textContent = `${step.instruction} ${step.distanceLabel}. Next: ${step.landmarkLabel}.`;
+    steps.appendChild(item);
+  }
+
   const anchors = document.createElement('ol');
+  anchors.setAttribute('data-route-landmarks', 'true');
 
   for (const anchor of input.route.anchors) {
     const item = document.createElement('li');
@@ -275,7 +301,7 @@ export function renderGuestRouteScreen(
     anchors.appendChild(item);
   }
 
-  section.append(anchors);
+  section.append(steps, anchors);
   return section;
 }
 
