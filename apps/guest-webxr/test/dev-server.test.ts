@@ -107,6 +107,11 @@ describe('guest WebXR dev server', () => {
       assert.match(devSession.contentType ?? '', /application\/json/);
       assert.equal(devSession.body.ok, true);
       assert.equal(typeof devSession.body.token, 'string');
+      assert.equal(devSession.body.url, devSession.body.copyUrl);
+      assert.equal(
+        devSession.body.copyUrl,
+        `/?token=${encodeURIComponent(devSession.body.token)}`,
+      );
 
       const guestRoute = await fetch(
         `${baseUrl}/api/guest/routes?token=${encodeURIComponent(devSession.body.token)}`,
