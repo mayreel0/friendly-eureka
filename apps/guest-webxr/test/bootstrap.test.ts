@@ -10,6 +10,7 @@ import {
 import {
   bootstrapGuestEntry,
   createHttpGuestRouteLoader,
+  detectBrowserArSupport,
   parseGuestSessionToken,
 } from '../src/entry/bootstrap.ts';
 
@@ -86,6 +87,36 @@ describe('guest WebXR browser bootstrap', () => {
       'manual-fallback',
     );
     assert.match(document.host.shadowRoot?.textContent ?? '', /Manual route guidance/);
+  });
+
+  it('renders the ready route screen when Android WebXR is supported', async () => {
+    const document = createTestDocument();
+    const registry = createTestCustomElementRegistry();
+
+    const result = bootstrapGuestEntry({
+      customElements: registry,
+      HTMLElement: TestGuestHTMLElement,
+      document,
+    }, {
+      location: {
+        search: '?token=signed-token',
+        hash: '',
+      },
+      arSupportDetector: () => 'webxr',
+      routeLoader: async () => ({
+        ok: true,
+        route,
+      }),
+    });
+
+    await result.routeLoad;
+
+    assert.equal(
+      document.host.shadowRoot?.querySelectorAll('[data-screen]').at(0)?.getAttribute('data-screen'),
+      'ready',
+    );
+    assert.match(document.host.shadowRoot?.textContent ?? '', /Route ready/);
+    assert.match(document.host.shadowRoot?.textContent ?? '', /Destination: Restroom/);
   });
 
   it('renders an error state when route loading fails', async () => {
@@ -168,6 +199,37 @@ describe('guest WebXR browser bootstrap', () => {
         hash: '#token=fallback-token',
       }),
       'fallback-token',
+    );
+  });
+
+  it('detects browser AR support from Android immersive WebXR availability', async () => {
+    assert.equal(
+      await detectBrowserArSupport({
+        userAgent: 'Mozilla/5.0 (Linux; Android 16) Chrome/152.0.7977.82',
+        xr: {
+          isSessionSupported: async () => true,
+        },
+      }),
+      'webxr',
+    );
+
+    assert.equal(
+      await detectBrowserArSupport({
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+      }),
+      'ios-app-clip',
+    );
+
+    assert.equal(
+      await detectBrowserArSupport({
+        userAgent: 'Mozilla/5.0 (Linux; Android 16) Chrome/152.0.7977.82',
+        xr: {
+          isSessionSupported: async () => {
+            throw new Error('not available');
+          },
+        },
+      }),
+      'manual',
     );
   });
 
