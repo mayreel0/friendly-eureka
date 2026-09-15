@@ -93,6 +93,12 @@ type ApiResult<T extends object = object> =
   | ({ ok: true } & T)
   | ApiFailure;
 
+export type GuestRouteSessionSummary = {
+  source: EntrySource;
+  expiresAt: string;
+  canViewPassword: boolean;
+};
+
 const QR_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const QR_RATE_LIMIT_MAX = 5;
 
@@ -479,7 +485,7 @@ export function createWifiSession(
 export function fetchGuestRoute(
   context: ApiContext,
   input: { token: string; at?: string },
-): ApiResult<{ route: SerializedRoute }> {
+): ApiResult<{ route: SerializedRoute; session: GuestRouteSessionSummary }> {
   const token = verifyGuestToken(context, input.token, input.at ?? context.now());
 
   if (!token.ok) {
@@ -496,7 +502,15 @@ export function fetchGuestRoute(
     return { ok: false, status: 404, error: 'route-not-found' };
   }
 
-  return { ok: true, route: serializeRoute(route) };
+  return {
+    ok: true,
+    route: serializeRoute(route),
+    session: {
+      source: token.payload.source,
+      expiresAt: token.payload.expiresAt,
+      canViewPassword: token.payload.canViewPassword,
+    },
+  };
 }
 
 export function fetchPassword(

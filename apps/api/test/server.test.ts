@@ -139,6 +139,11 @@ describe('api service contracts', () => {
     assert.ok(guestRoute.ok);
     assert.equal(guestRoute.route.id, 'route-1');
     assert.equal('password' in guestRoute.route, false);
+    assert.deepEqual(guestRoute.session, {
+      source: 'qr',
+      expiresAt: session.expiresAt,
+      canViewPassword: false,
+    });
   });
 
   it('rejects guessed, expired, and tampered QR session tokens', () => {
