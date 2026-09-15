@@ -77,6 +77,15 @@ const cases: VisualSmokeCase[] = [
       route,
     }),
   },
+  {
+    id: 'webxr-ready',
+    expectedScreen: 'ready',
+    expectedText: 'Route ready',
+    config: createBaseConfig({
+      route,
+      arSupport: 'webxr',
+    }),
+  },
 ];
 
 export async function runGuestFallbackVisualSmoke(
