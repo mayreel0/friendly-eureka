@@ -2,6 +2,7 @@
 
 Use this checklist with `plans/2026-09-01-001-toilet-ar-navigation-pilot-qa-plan.md`.
 Each QA run should create one result file under `docs/pilot-qa-runs/` from the template below.
+Current checklist coverage is summarized in `docs/pilot-qa-coverage-status.md`.
 
 ## Run Setup
 
