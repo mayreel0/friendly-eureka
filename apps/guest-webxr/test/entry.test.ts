@@ -11,6 +11,7 @@ import {
   registerGuestEntryElement,
   renderGuestFallbackScreen,
   resolveEntryState,
+  summarizeRoute,
 } from '../src/entry/index.ts';
 
 const route = {
@@ -141,6 +142,15 @@ describe('guest WebXR entry', () => {
     );
   });
 
+  it('summarizes a loaded route for guest guidance', () => {
+    assert.deepEqual(summarizeRoute(route), {
+      destinationLabel: 'Restroom',
+      totalDistanceLabel: '8 meters',
+      firstStepInstruction: 'Follow the hallway to the restroom.',
+      firstStepLabel: 'Restroom',
+    });
+  });
+
   it('returns recovery guidance when AR drift is excessive', () => {
     assert.deepEqual(
       buildArGuidance({
@@ -214,10 +224,28 @@ describe('guest WebXR entry', () => {
     });
 
     assert.equal(screen.getAttribute('data-screen'), 'manual-fallback');
+    assert.equal(screen.getAttribute('data-guidance-mode'), 'ar');
     assert.match(screen.textContent ?? '', /Manual route guidance/);
+    assert.match(screen.textContent ?? '', /Destination: Restroom/);
+    assert.match(screen.textContent ?? '', /First step: Follow the hallway to the restroom\./);
     assert.match(screen.textContent ?? '', /Follow the hallway to the restroom\./);
-    assert.match(screen.textContent ?? '', /8 meters/);
+    assert.match(screen.textContent ?? '', /Distance: 8 meters/);
     assert.equal(screen.querySelectorAll('[data-anchor-id]').length, 2);
+  });
+
+  it('renders recovery guidance as a distinct route mode', () => {
+    const document = createTestDocument();
+
+    const screen = renderGuestFallbackScreen(document, {
+      route,
+      currentAnchorId: 'entrance',
+      trackingConfidence: 'limited',
+      driftMeters: 0.2,
+    });
+
+    assert.equal(screen.getAttribute('data-screen'), 'manual-fallback');
+    assert.equal(screen.getAttribute('data-guidance-mode'), 'recovery');
+    assert.match(screen.textContent ?? '', /Recovery: Point your camera at Restroom to realign\./);
   });
 
   it('registers a lightweight custom element shell for fallback rendering', () => {
@@ -247,7 +275,7 @@ describe('guest WebXR entry', () => {
       route,
       token: 'signed-token',
       network: 'online',
-      arSupport: 'manual',
+      arSupport: 'webxr',
       currentAnchorId: 'entrance',
       trackingConfidence: 'normal',
       driftMeters: 0.2,
@@ -258,8 +286,11 @@ describe('guest WebXR entry', () => {
     const screens = element.shadowRoot?.querySelectorAll('[data-screen]') ?? [];
 
     assert.equal(screens.length, 1);
-    assert.equal(screens[0]?.getAttribute('data-screen'), 'manual-fallback');
-    assert.match(element.shadowRoot?.textContent ?? '', /Manual route guidance/);
+    assert.equal(screens[0]?.getAttribute('data-screen'), 'ready');
+    assert.equal(screens[0]?.getAttribute('data-guidance-mode'), 'ar');
+    assert.match(element.shadowRoot?.textContent ?? '', /Route ready/);
+    assert.match(element.shadowRoot?.textContent ?? '', /Destination: Restroom/);
+    assert.match(element.shadowRoot?.textContent ?? '', /First step: Follow the hallway to the restroom\./);
     assert.match(element.shadowRoot?.textContent ?? '', /Follow the hallway to the restroom\./);
   });
 });
