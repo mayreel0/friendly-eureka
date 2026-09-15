@@ -169,6 +169,24 @@ export function buildArGuidance(input: {
   };
 }
 
+export function summarizeRoute(route: SerializedRoute) {
+  const destination =
+    route.anchors.find((anchor) => anchor.type === 'destination') ??
+    route.anchors.at(-1);
+  const firstSegment = route.segments.at(0);
+  const firstStepAnchor = route.anchors.find(
+    (anchor) => anchor.id === firstSegment?.toAnchorId,
+  );
+
+  return {
+    destinationLabel: destination?.label ?? 'Restroom',
+    totalDistanceLabel: `${route.totalDistanceMeters} meters`,
+    firstStepInstruction:
+      firstSegment?.instruction ?? 'Follow posted signs to the restroom.',
+    firstStepLabel: firstStepAnchor?.label ?? destination?.label,
+  };
+}
+
 function hasUsableGuidanceGeometry(
   route: SerializedRoute,
   currentAnchorId: string,
@@ -194,18 +212,59 @@ export function renderGuestFallbackScreen(
     driftMeters: number;
   },
 ): GuestFallbackElement {
+  return renderGuestRouteScreen(document, {
+    ...input,
+    screen: 'manual-fallback',
+  });
+}
+
+export function renderGuestRouteScreen(
+  document: GuestFallbackDocument,
+  input: {
+    route: SerializedRoute;
+    currentAnchorId: string;
+    trackingConfidence: TrackingConfidence;
+    driftMeters: number;
+    screen: 'ready' | 'manual-fallback';
+  },
+): GuestFallbackElement {
   const guidance = buildArGuidance(input);
+  const summary = summarizeRoute(input.route);
   const section = document.createElement('section');
-  section.setAttribute('data-screen', 'manual-fallback');
+  section.setAttribute('data-screen', input.screen);
+  section.setAttribute('data-guidance-mode', guidance.mode);
 
   const heading = document.createElement('h1');
-  heading.textContent = 'Manual route guidance';
+  heading.textContent =
+    input.screen === 'ready' ? 'Route ready' : 'Manual route guidance';
 
-  const instruction = document.createElement('p');
-  instruction.textContent = guidance.instruction;
+  const destination = document.createElement('p');
+  destination.setAttribute('data-route-summary', 'destination');
+  destination.textContent = `Destination: ${summary.destinationLabel}`;
 
   const distance = document.createElement('p');
-  distance.textContent = `${input.route.totalDistanceMeters} meters`;
+  distance.setAttribute('data-route-summary', 'distance');
+  distance.textContent = `Distance: ${summary.totalDistanceLabel}`;
+
+  const firstStep = document.createElement('p');
+  firstStep.setAttribute('data-route-summary', 'first-step');
+  firstStep.textContent = `First step: ${summary.firstStepInstruction}`;
+
+  const instruction = document.createElement('p');
+  instruction.setAttribute('data-current-guidance', guidance.mode);
+  instruction.textContent =
+    guidance.mode === 'recovery'
+      ? `Recovery: ${guidance.instruction}`
+      : guidance.instruction;
+
+  if (summary.firstStepLabel) {
+    const firstStepTarget = document.createElement('p');
+    firstStepTarget.setAttribute('data-route-summary', 'first-step-target');
+    firstStepTarget.textContent = `Next landmark: ${summary.firstStepLabel}`;
+    section.append(heading, destination, distance, firstStep, firstStepTarget, instruction);
+  } else {
+    section.append(heading, destination, distance, firstStep, instruction);
+  }
 
   const anchors = document.createElement('ol');
 
@@ -216,8 +275,31 @@ export function renderGuestFallbackScreen(
     anchors.appendChild(item);
   }
 
-  section.append(heading, instruction, distance, anchors);
+  section.append(anchors);
   return section;
+}
+
+function describeEntryStatus(
+  state: ReturnType<typeof resolveEntryState>,
+  routeLoadError: string | undefined,
+) {
+  if (state.screen === 'error') {
+    return routeLoadError ?? 'route-load-failed';
+  }
+
+  if (state.screen === 'scan-required') {
+    return 'scan-required: Scan the venue QR code to start restroom guidance.';
+  }
+
+  if (state.screen === 'loading') {
+    return 'loading: Loading route guidance.';
+  }
+
+  if (state.screen === 'offline') {
+    return 'offline: Reconnect to load this route.';
+  }
+
+  return state.screen;
 }
 
 export function registerGuestEntryElement(
@@ -252,13 +334,17 @@ export function registerGuestEntryElement(
       const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
       const state = resolveEntryState(this.config);
 
-      if (state.screen === 'manual-fallback' && this.config.route) {
+      if (
+        (state.screen === 'manual-fallback' || state.screen === 'ready') &&
+        this.config.route
+      ) {
         root.replaceChildren(
-          renderGuestFallbackScreen(document, {
+          renderGuestRouteScreen(document, {
             route: this.config.route,
             currentAnchorId: this.config.currentAnchorId,
             trackingConfidence: this.config.trackingConfidence,
             driftMeters: this.config.driftMeters,
+            screen: state.screen,
           }),
         );
         return;
@@ -266,10 +352,7 @@ export function registerGuestEntryElement(
 
       const status = document.createElement('section');
       status.setAttribute('data-screen', state.screen);
-      status.textContent =
-        state.screen === 'error'
-          ? (this.config.routeLoadError ?? 'route-load-failed')
-          : state.screen;
+      status.textContent = describeEntryStatus(state, this.config.routeLoadError);
       root.replaceChildren(status);
     }
   }
