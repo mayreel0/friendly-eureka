@@ -141,6 +141,68 @@ describe('guest WebXR entry', () => {
     );
   });
 
+  it('returns recovery guidance when AR drift is excessive', () => {
+    assert.deepEqual(
+      buildArGuidance({
+        route,
+        currentAnchorId: 'entrance',
+        trackingConfidence: 'normal',
+        driftMeters: 2,
+      }),
+      {
+        mode: 'recovery',
+        instruction: 'Point your camera at Restroom to realign.',
+        nextAnchorId: 'restroom',
+      },
+    );
+  });
+
+  it('returns generic fallback guidance when route anchors are corrupt', () => {
+    assert.deepEqual(
+      buildArGuidance({
+        route: {
+          ...route,
+          anchors: [],
+          segments: [],
+          totalDistanceMeters: 0,
+        },
+        currentAnchorId: 'entrance',
+        trackingConfidence: 'normal',
+        driftMeters: 0.2,
+      }),
+      {
+        mode: 'fallback',
+        instruction: 'Follow posted signs or ask staff for restroom directions.',
+        nextAnchorId: undefined,
+      },
+    );
+
+    assert.deepEqual(
+      buildArGuidance({
+        route: {
+          ...route,
+          segments: [
+            {
+              id: 'segment-corrupt',
+              fromAnchorId: 'entrance',
+              toAnchorId: 'missing-anchor',
+              instruction: 'Follow a broken segment.',
+              distanceMeters: 4,
+            },
+          ],
+        },
+        currentAnchorId: 'entrance',
+        trackingConfidence: 'normal',
+        driftMeters: 0.2,
+      }),
+      {
+        mode: 'fallback',
+        instruction: 'Follow posted signs or ask staff for restroom directions.',
+        nextAnchorId: undefined,
+      },
+    );
+  });
+
   it('renders a non-blank manual fallback screen in a browser document', () => {
     const document = createTestDocument();
 
