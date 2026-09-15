@@ -94,6 +94,17 @@ export type SerializedRoute = {
 
 export type RouteGeometry = Pick<Route, 'id' | 'anchors' | 'segments'>;
 
+export type RouteStepDescription = {
+  segmentId: string;
+  fromAnchorId: string;
+  fromLabel: string;
+  toAnchorId: string;
+  toLabel: string;
+  instruction: string;
+  distanceMeters: number;
+  floorTransition?: Segment['floorTransition'];
+};
+
 const SESSION_TTL_MS = 20 * 60 * 1000;
 const WIFI_PROOF_TTL_MS = 5 * 60 * 1000;
 const DRIFT_RECOVERY_THRESHOLD_METERS = 1.5;
@@ -121,6 +132,26 @@ export function serializeRoute(route: Route): SerializedRoute {
         : [],
     ),
   };
+}
+
+export function describeRouteSteps(route: RouteGeometry): RouteStepDescription[] {
+  const anchorsById = new Map(route.anchors.map((anchor) => [anchor.id, anchor]));
+
+  return route.segments.map((segment) => {
+    const fromAnchor = anchorsById.get(segment.fromAnchorId);
+    const toAnchor = anchorsById.get(segment.toAnchorId);
+
+    return {
+      segmentId: segment.id,
+      fromAnchorId: segment.fromAnchorId,
+      fromLabel: fromAnchor?.label ?? segment.fromAnchorId,
+      toAnchorId: segment.toAnchorId,
+      toLabel: toAnchor?.label ?? segment.toAnchorId,
+      instruction: segment.instruction,
+      distanceMeters: segment.distanceMeters,
+      floorTransition: segment.floorTransition,
+    };
+  });
 }
 
 export function canActivateRoute(route: Route): RouteDecision {
