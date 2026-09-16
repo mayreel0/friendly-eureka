@@ -7,6 +7,7 @@ import {
   canExposeRoute,
   createGuestSession,
   describeRecoveryStep,
+  describeRouteSteps,
   rotateRoutePassword,
   serializeRoute,
 } from '../src/index.ts';
@@ -90,6 +91,70 @@ describe('route core', () => {
       ],
     });
     assert.equal('passwordUpdatedAt' in serialized, false);
+  });
+
+  it('describes route steps with labels, distances, and floor transitions', () => {
+    assert.deepEqual(describeRouteSteps(route), [
+      {
+        segmentId: 'segment-1',
+        fromAnchorId: 'entrance',
+        fromLabel: 'Front door',
+        toAnchorId: 'stairs',
+        toLabel: 'Stairs',
+        instruction: 'Walk toward the stairs.',
+        distanceMeters: 4.2,
+        floorTransition: undefined,
+      },
+      {
+        segmentId: 'segment-2',
+        fromAnchorId: 'stairs',
+        fromLabel: 'Stairs',
+        toAnchorId: 'restroom',
+        toLabel: 'Restroom door',
+        instruction: 'Go upstairs and turn right.',
+        distanceMeters: 6.8,
+        floorTransition: {
+          type: 'stairs',
+          fromFloor: 1,
+          toFloor: 2,
+        },
+      },
+    ]);
+  });
+
+  it('keeps route step descriptions usable when anchor labels are missing', () => {
+    assert.deepEqual(
+      describeRouteSteps({
+        ...route,
+        anchors: [],
+      }),
+      [
+        {
+          segmentId: 'segment-1',
+          fromAnchorId: 'entrance',
+          fromLabel: 'entrance',
+          toAnchorId: 'stairs',
+          toLabel: 'stairs',
+          instruction: 'Walk toward the stairs.',
+          distanceMeters: 4.2,
+          floorTransition: undefined,
+        },
+        {
+          segmentId: 'segment-2',
+          fromAnchorId: 'stairs',
+          fromLabel: 'stairs',
+          toAnchorId: 'restroom',
+          toLabel: 'restroom',
+          instruction: 'Go upstairs and turn right.',
+          distanceMeters: 6.8,
+          floorTransition: {
+            type: 'stairs',
+            fromFloor: 1,
+            toFloor: 2,
+          },
+        },
+      ],
+    );
   });
 
   it('keeps tested routes active when only the restroom password rotates', () => {
