@@ -3,6 +3,7 @@ import {
   detectArSupport,
   type GuestEntryElementConfig,
   type GuestEntryElementEnvironment,
+  type GuestRouteSessionSummary,
   type NetworkState,
   registerGuestEntryElement,
 } from './index.ts';
@@ -22,7 +23,7 @@ export type GuestBrowserDocument = GuestEntryElementEnvironment['document'] & {
 };
 
 export type GuestBrowserRouteLoadResult =
-  | { ok: true; route: SerializedRoute }
+  | { ok: true; route: SerializedRoute; session?: GuestRouteSessionSummary }
   | { ok: false; status?: number; error: string };
 
 export type GuestBrowserRouteLoader = (input: {
@@ -118,7 +119,7 @@ export function bootstrapGuestEntry(
       const detectedConfig = { ...pendingConfig, arSupport };
       host.configure(
         result.ok
-          ? { ...detectedConfig, route: result.route }
+          ? { ...detectedConfig, route: result.route, session: result.session }
           : { ...detectedConfig, routeLoadError: result.error },
       );
       return result;
@@ -252,6 +253,7 @@ function createPendingGuestEntryConfig(
 ): GuestEntryElementConfig {
   return {
     route: undefined,
+    session: undefined,
     token,
     network: options.network ?? 'online',
     arSupport: options.arSupport ?? 'manual',

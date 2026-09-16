@@ -230,6 +230,11 @@ describe('guest WebXR entry', () => {
 
     const screen = renderGuestFallbackScreen(document, {
       route,
+      session: {
+        source: 'qr',
+        expiresAt: '2026-09-01T12:20:00.000Z',
+        canViewPassword: false,
+      },
       currentAnchorId: 'entrance',
       trackingConfidence: 'normal',
       driftMeters: 0.2,
@@ -242,6 +247,8 @@ describe('guest WebXR entry', () => {
     assert.match(screen.textContent ?? '', /First step: Follow the hallway to the restroom\./);
     assert.match(screen.textContent ?? '', /Follow the hallway to the restroom\./);
     assert.match(screen.textContent ?? '', /Distance: 8 meters/);
+    assert.match(screen.textContent ?? '', /QR session expires at 2026-09-01T12:20:00.000Z/);
+    assert.match(screen.textContent ?? '', /Restroom password remains locked/);
     assert.equal(screen.querySelectorAll('[data-route-step-id]').length, 1);
     assert.match(screen.textContent ?? '', /Next: Restroom/);
     assert.equal(screen.querySelectorAll('[data-anchor-id]').length, 2);
