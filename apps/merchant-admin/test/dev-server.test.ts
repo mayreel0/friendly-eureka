@@ -2,9 +2,16 @@ import assert from 'node:assert/strict';
 import { type AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
 
-import { createMerchantAdminDevServer } from '../dev-server.ts';
+import { createMerchantAdminDevServer, resolveGuestOrigin } from '../dev-server.ts';
 
 describe('merchant admin dev server', () => {
+  it('accepts a public guest origin and rejects unsafe or ambiguous values', () => {
+    assert.equal(resolveGuestOrigin('https://pilot.example.com/'), 'https://pilot.example.com');
+    for (const value of ['javascript:alert(1)', 'https://user:pass@example.com',
+      'https://example.com/path', 'https://example.com/?token=x', 'https://example.com/#x']) {
+      assert.throws(() => resolveGuestOrigin(value), /GUEST_ORIGIN/);
+    }
+  });
   it('serves the browser shell and transpiles TypeScript modules', async () => {
     const server = createMerchantAdminDevServer();
 

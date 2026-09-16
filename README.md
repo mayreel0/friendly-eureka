@@ -34,6 +34,16 @@ npm --workspace @lechigo/merchant-admin run dev
 
 Merchant browser tests use real Chromium, including action persistence and error recovery. The pilot data remains local development data; restarting the dev server resets it.
 
+The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:4173
+# In another terminal, substitute the origin printed by cloudflared:
+GUEST_ORIGIN=https://your-tunnel.trycloudflare.com npm run dev:pilot
+```
+
+Open the merchant dashboard and generate a new guest URL; its QR uses that origin. `GUEST_ORIGIN` also works with the standalone merchant dev command. Without it, QR links target this computer's loopback address and cannot be opened on a phone. These QR images contain temporary development sessions, not permanent venue entry credentials.
+
 ## Implemented Pilot Slice
 
 - Route core serializes guest-safe AR geometry, checks activation readiness, creates short-lived sessions, validates Wi-Fi proof, and returns recovery guidance when tracking degrades.

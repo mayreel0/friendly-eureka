@@ -33,7 +33,7 @@ export function createMerchantAdminDevServer(
 ) {
   const resolvedAppRoot = resolve(options.appRoot ?? appRoot);
   const resolvedRepoRoot = resolve(options.repoRoot ?? repoRoot);
-  const guestOrigin = options.guestOrigin ?? 'http://127.0.0.1:4173';
+  const guestOrigin = resolveGuestOrigin(options.guestOrigin ?? process.env.GUEST_ORIGIN ?? 'http://127.0.0.1:4173');
   let pilotState = createInitialPilotState();
 
   return createServer(async (request, response) => {
@@ -187,6 +187,15 @@ export function createMerchantAdminDevServer(
       response.end('Not found');
     }
   });
+}
+
+export function resolveGuestOrigin(value: string) {
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
+    url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('GUEST_ORIGIN must be an HTTP(S) origin without credentials, path, query, or fragment');
+  }
+  return url.origin;
 }
 
 function createPilotRouteSessionPayload(guestOrigin: string) {

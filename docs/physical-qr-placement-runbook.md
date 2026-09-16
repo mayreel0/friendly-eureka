@@ -26,8 +26,15 @@ npm run dev:pilot
 cloudflared tunnel --url http://127.0.0.1:4173
 ```
 
-Use the Cloudflare quick tunnel URL on Android Chrome.
-Generate a local guest launch URL from the merchant admin, or fetch the dev session JSON from `/api/dev/guest-session` and copy only the `url` value.
+After cloudflared prints its HTTPS origin, restart the pilot servers with that origin:
+
+```bash
+GUEST_ORIGIN=https://your-tunnel.trycloudflare.com npm run dev:pilot
+```
+
+Keep the tunnel running. Restarting the pilot servers resets their development state.
+Complete the merchant pilot controls and generate a new guest URL. Scan the displayed QR with Android Chrome, or use **Download QR image** to save a PNG. The default loopback URL works only on the computer, not on the phone.
+These QR images carry temporary development sessions and are for local simulation; they are not permanent venue QR credentials. A changed tunnel origin requires restarting with the new value and generating a new guest URL.
 
 ## Placement Criteria
 

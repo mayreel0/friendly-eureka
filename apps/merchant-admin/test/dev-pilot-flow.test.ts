@@ -4,6 +4,15 @@ import { describe, it } from 'node:test';
 import { createDevPilotInstructions } from '../../../scripts/dev-pilot-flow.mjs';
 
 describe('local pilot dev flow instructions', () => {
+  it('keeps the tunnel target local when guest QR uses a public origin', () => {
+    const lines = createDevPilotInstructions({
+      guestOrigin: 'http://127.0.0.1:4173',
+      merchantOrigin: 'http://127.0.0.1:4174',
+      publicGuestOrigin: 'https://pilot.example.com',
+    });
+    assert.ok(lines.includes('Android tunnel command: cloudflared tunnel --url http://127.0.0.1:4173'));
+    assert.ok(lines.includes('Guest QR origin: https://pilot.example.com'));
+  });
   it('prints Android manual testing entry points', () => {
     assert.deepEqual(
       createDevPilotInstructions({
