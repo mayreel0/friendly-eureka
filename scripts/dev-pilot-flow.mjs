@@ -10,11 +10,11 @@ const publicGuestOrigin = process.env.GUEST_ORIGIN ?? guestOrigin;
 const merchantOrigin = `http://${host}:${merchantPort}`;
 
 if (isMainModule()) {
-  const guestServer = createGuestWebxrDevServer();
   const merchantServer = createMerchantAdminDevServer({
     guestOrigin: publicGuestOrigin,
     stateFile: process.env.PILOT_STATE_FILE ?? defaultPilotStateFile,
   });
+  const guestServer = createGuestWebxrDevServer({ guestApi: merchantServer.guestApi });
 
   await Promise.all([
     listen(guestServer, guestPort, host),

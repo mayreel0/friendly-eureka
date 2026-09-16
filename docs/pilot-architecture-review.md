@@ -77,7 +77,7 @@ The monorepo enforces clean layer boundaries:
 
 ## 5. Developer Experience & Pilot Tooling
 
-- **Single Pilot Command**: `npm run dev:pilot` boots both the merchant admin and guest WebXR shells simultaneously with mock routes pre-seeded.
+- **Single Pilot Command**: `npm run dev:pilot` boots both shells with shared publishing state. The seeded example route becomes available to guests only after administrator activation; the standalone guest command remains an independent seeded demo.
 - **Physical Device Bridge**: Out-of-the-box instructions for Cloudflare Quick Tunnels (`cloudflared tunnel --url http://127.0.0.1:4173`) enabling instant Android testing over HTTPS.
 - **Automated Verification**: `npm run typecheck`, `npm run format`, and `npm test` execute 66 tests across 13 test suites with 100% pass rate.
 

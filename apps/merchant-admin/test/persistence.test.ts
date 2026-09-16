@@ -47,6 +47,7 @@ test('pilot state survives server restart without persisting guest session URLs'
     assert.deepEqual(restored.readiness, readiness);
     assert.equal(restored.followUps[0].id, 'follow-up-1');
     assert.equal(restored.nextTarget.id, 'generate-guest-url');
+    assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 200);
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage();
@@ -93,6 +94,7 @@ test('save failure leaves live state unchanged and returns a retryable error', a
     assert.equal((await response.json()).error, 'pilot-state-save-failed');
     const state = await (await fetch(`${running.origin}/api/dev/pilot-state`)).json();
     assert.equal(state.recording.stage, 'empty');
+    assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 409);
     await rm(parent);
     const retry = await fetch(`${running.origin}/api/dev/pilot-route-recording`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stage: 'recorded' }),

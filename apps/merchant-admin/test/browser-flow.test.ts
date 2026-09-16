@@ -139,6 +139,9 @@ test('saved evidence restores readiness and unsafe guest links stay inert', asyn
 test('downloadable QR decodes to the configured phone URL after reload', async () => {
   const guestOrigin = 'https://pilot.example.com';
   await withDashboard(async (page, origin) => {
+    await page.request.post(`${origin}/api/dev/pilot-route-recording`, { data: {
+      stage: 'active', routeId: 'pilot-restroom-route',
+    } });
     const sessionResponse = await page.request.get(`${origin}/api/dev/pilot-route-session`);
     const session = await sessionResponse.json() as { launchUrl: string };
     assert.equal(new URL(session.launchUrl).origin, guestOrigin);

@@ -36,17 +36,16 @@ describe('merchant admin dev server', () => {
       assert.match(await entry.text(), /registerMerchantAdminElement/);
 
       const session = await fetch(`${baseUrl}/api/dev/pilot-route-session`);
-      const body = await session.json() as { launchUrl?: string };
+      const body = await session.json() as { error?: string };
 
-      assert.equal(session.status, 200);
+      assert.equal(session.status, 409);
       assert.match(session.headers.get('content-type') ?? '', /application\/json/);
-      assert.match(body.launchUrl ?? '', /^http:\/\/127\.0\.0\.1:4173\/\?token=/);
+      assert.equal(body.error, 'pilot-route-not-active');
 
       const sessionUrl = await fetch(`${baseUrl}/api/dev/pilot-route-session-url`);
 
-      assert.equal(sessionUrl.status, 200);
-      assert.match(sessionUrl.headers.get('content-type') ?? '', /text\/plain/);
-      assert.equal(await sessionUrl.text(), body.launchUrl);
+      assert.equal(sessionUrl.status, 409);
+      assert.equal((await sessionUrl.json()).error, 'pilot-route-not-active');
 
       const initialReadiness = await fetch(
         `${baseUrl}/api/dev/pilot-readiness`,
