@@ -14,6 +14,7 @@ describe('local pilot dev flow instructions', () => {
         'Guest WebXR dev shell: http://127.0.0.1:4173/',
         'Merchant admin dev shell: http://127.0.0.1:4174/',
         'Dev guest session JSON: http://127.0.0.1:4173/api/dev/guest-session',
+        'Merchant-generated guest URL text: http://127.0.0.1:4174/api/dev/pilot-route-session-url',
         'Android tunnel command: cloudflared tunnel --url http://127.0.0.1:4173',
         'Pilot flow: open merchant admin, generate the guest URL, then open it on Android Chrome.',
       ],
