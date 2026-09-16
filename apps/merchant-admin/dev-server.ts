@@ -130,19 +130,21 @@ export function createMerchantAdminDevServer(
       }
 
       if (requestUrl.pathname === '/api/dev/pilot-route-session') {
-        const recording = recordPilotRestroomRoute(
-          createApiContext({
-            signingSecret: 'local-dev-pilot-secret',
-            now: () => '2026-09-01T10:00:00.000Z',
-          }),
-        );
+        const session = createPilotRouteSessionPayload(guestOrigin);
 
         writeJson(response, 200, {
           ok: true,
-          token: recording.token,
-          expiresAt: recording.expiresAt,
-          launchUrl: new URL(recording.launchUrl, guestOrigin).toString(),
+          ...session,
         });
+        return;
+      }
+
+      if (requestUrl.pathname === '/api/dev/pilot-route-session-url') {
+        writeText(
+          response,
+          200,
+          createPilotRouteSessionPayload(guestOrigin).launchUrl,
+        );
         return;
       }
 
@@ -170,6 +172,21 @@ export function createMerchantAdminDevServer(
       response.end('Not found');
     }
   });
+}
+
+function createPilotRouteSessionPayload(guestOrigin: string) {
+  const recording = recordPilotRestroomRoute(
+    createApiContext({
+      signingSecret: 'local-dev-pilot-secret',
+      now: () => '2026-09-01T10:00:00.000Z',
+    }),
+  );
+
+  return {
+    token: recording.token,
+    expiresAt: recording.expiresAt,
+    launchUrl: new URL(recording.launchUrl, guestOrigin).toString(),
+  };
 }
 
 type PilotReadinessState = {
@@ -393,6 +410,20 @@ function writeJson(
     'content-type': 'application/json; charset=utf-8',
   });
   response.end(JSON.stringify(body));
+}
+
+function writeText(
+  response: {
+    writeHead(statusCode: number, headers?: Record<string, string>): void;
+    end(chunk?: string): void;
+  },
+  status: number,
+  body: string,
+) {
+  response.writeHead(status, {
+    'content-type': 'text/plain; charset=utf-8',
+  });
+  response.end(body);
 }
 
 function parseRequestPath(url: string | undefined) {
