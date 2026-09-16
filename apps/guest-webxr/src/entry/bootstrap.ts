@@ -99,7 +99,7 @@ export function bootstrapGuestEntry(
 
   host.configure(pendingConfig);
 
-  if (!token) {
+  if (!token || pendingConfig.network === 'offline') {
     return {
       configured: true,
       elementConstructor,
@@ -120,7 +120,7 @@ export function bootstrapGuestEntry(
       host.configure(
         result.ok
           ? { ...detectedConfig, route: result.route, session: result.session }
-          : { ...detectedConfig, routeLoadError: result.error },
+          : { ...detectedConfig, routeLoadError: result.error, routeLoadStatus: result.status },
       );
       return result;
     })
@@ -208,6 +208,7 @@ function classifyBrowserPlatform(
 export function createHttpGuestRouteLoader(input: {
   endpoint?: string;
   fetch?: typeof fetch;
+  timeoutMs?: number;
 }): GuestBrowserRouteLoader {
   const fetchRoute = input.fetch ?? globalThis.fetch;
   const endpoint = input.endpoint ?? '/api/guest/routes';
@@ -222,7 +223,9 @@ export function createHttpGuestRouteLoader(input: {
 
     const url = new URL(endpoint, 'http://localhost');
     url.searchParams.set('token', token);
-    const response = await fetchRoute(`${url.pathname}${url.search}`);
+    const response = await fetchRoute(`${url.pathname}${url.search}`, {
+      signal: AbortSignal.timeout(input.timeoutMs ?? 15000),
+    });
     const contentType = response.headers.get('content-type') ?? '';
 
     if (!contentType.includes('application/json')) {
@@ -243,7 +246,7 @@ export function createHttpGuestRouteLoader(input: {
       };
     }
 
-    return payload;
+    return payload.ok ? payload : { ...payload, status: response.status };
   };
 }
 

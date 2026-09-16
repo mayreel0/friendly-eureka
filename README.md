@@ -48,6 +48,8 @@ Open the merchant dashboard and generate a new guest URL; its QR uses that origi
 
 Guest links now open step-by-step landmark guidance. Confirm each landmark, return to the previous step when needed, and confirm arrival at the final destination. Floor transitions and an expandable full route list remain available without AR support. This is manual progression, not camera-based position tracking; progress resets on reload and is not stored in browser storage.
 
+Temporary route-loading failures offer a retry; invalid sessions ask for a fresh QR scan. An interrupted initial load retries on reconnection. Once directions are loaded, going offline preserves the current landmark and navigation without refetching the route. This is in-memory continuity, not offline support for reloading or reopening the page.
+
 - Route core serializes guest-safe AR geometry, checks activation readiness, creates short-lived sessions, validates Wi-Fi proof, and returns recovery guidance when tracking degrades.
 - API service contracts cover merchant store ownership, route draft/test/activation, server-issued QR and Wi-Fi guest sessions, QR credential validation/rate limiting, session rotation, password access gates, and redacted audit logging.
 - Guest WebXR state helpers cover QR entry, AR support detection, App Clip handoff, manual fallback, AR guidance, and recovery prompts.

@@ -96,3 +96,67 @@ test('broken route chains do not produce misleading arrival controls', async () 
     await expect(page.getByRole('button', { name: 'I have arrived' })).toHaveCount(0);
   });
 });
+
+test('a transient route failure retries without reloading the page', async () => {
+  await withGuest(async (page, origin) => {
+    let attempts = 0;
+    await page.route('**/api/guest/routes?*', (request) => {
+      attempts++;
+      return request.fulfill(attempts === 1
+        ? { status: 503, json: { ok: false, error: 'unavailable' } }
+        : { json: { ok: true, route: multiStepRoute } });
+    });
+    await page.goto(`${origin}/?token=test`);
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('[data-progress]')).toHaveText('Step 1 of 2');
+    assert.equal(attempts, 2);
+  });
+});
+
+test('offline and reconnect keep the current landmark and avoid refetching', async () => {
+  await withGuest(async (page, origin) => {
+    let requests = 0;
+    await page.route('**/api/guest/routes?*', (request) => {
+      requests++;
+      return request.fulfill({ json: { ok: true, route: multiStepRoute } });
+    });
+    await page.goto(`${origin}/?token=test`);
+    await page.getByRole('button', { name: 'Reached this landmark' }).click();
+    await page.context().setOffline(true);
+    await expect(page.locator('[data-network-status]')).toContainText('Offline');
+    await expect(page.locator('[data-progress]')).toHaveText('Step 2 of 2');
+    await page.getByRole('button', { name: 'Previous landmark' }).click();
+    await expect(page.locator('[data-progress]')).toHaveText('Step 1 of 2');
+    await page.context().setOffline(false);
+    await expect(page.locator('[data-network-status]')).toHaveCount(0);
+    await expect(page.locator('[data-progress]')).toHaveText('Step 1 of 2');
+    assert.equal(requests, 1);
+  });
+});
+
+test('an invalid session directs guests to rescan rather than retry forever', async () => {
+  await withGuest(async (page, origin) => {
+    await page.goto(`${origin}/?token=invalid`);
+    await expect(page.getByRole('heading', { name: 'Session unavailable' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+    await expect(page.locator('[data-screen]')).toContainText('Scan the venue QR again');
+  });
+});
+
+test('a connection lost during initial loading recovers on reconnect', async () => {
+  await withGuest(async (page, origin) => {
+    let requests = 0;
+    await page.route('**/api/guest/routes?*', async (request) => {
+      requests++;
+      if (requests === 1) {
+        await page.context().setOffline(true);
+        await request.abort('internetdisconnected');
+      } else await request.fulfill({ json: { ok: true, route: multiStepRoute } });
+    });
+    await page.goto(`${origin}/?token=test`);
+    await expect(page.getByRole('heading', { name: 'No connection' })).toBeVisible();
+    await page.context().setOffline(false);
+    await expect(page.locator('[data-progress]')).toHaveText('Step 1 of 2');
+    assert.equal(requests, 2);
+  });
+});
