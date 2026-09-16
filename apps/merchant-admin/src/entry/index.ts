@@ -178,7 +178,7 @@ export function registerMerchantAdminElement(
       this.state = {
         ...this.state,
         ...pilotState.recording,
-        ...pilotState.readiness,
+        ...normalizeLoadedReadiness(pilotState.readiness),
         followUps: pilotState.followUps ?? [],
       };
       this.render();
@@ -187,6 +187,26 @@ export function registerMerchantAdminElement(
 
   environment.customElements.define(tagName, LechigoMerchantAdminElement);
   return LechigoMerchantAdminElement;
+}
+
+function normalizeLoadedReadiness(
+  readiness: ReturnType<typeof createInitialPilotState>['readiness'],
+) {
+  if (!readiness.qrPlacementEvidence) {
+    return readiness;
+  }
+
+  return {
+    ...readiness,
+    hasQrPlacement: true,
+    qaResults: {
+      ...readiness.qaResults,
+      'place-qr': readiness.qaResults['place-qr'] ?? {
+        summary: `QR placed at ${readiness.qrPlacementEvidence.location}; ${readiness.qrPlacementEvidence.orientation}`,
+        recordedAt: readiness.qrPlacementEvidence.recordedAt,
+      },
+    },
+  };
 }
 
 function readQrPlacementEvidence(screen: {
