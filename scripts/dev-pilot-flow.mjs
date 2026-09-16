@@ -58,6 +58,7 @@ export function createDevPilotInstructions(input) {
     `Guest WebXR dev shell: ${input.guestOrigin}/`,
     `Merchant admin dev shell: ${input.merchantOrigin}/`,
     `Dev guest session JSON: ${input.guestOrigin}/api/dev/guest-session`,
+    `Merchant-generated guest URL text: ${input.merchantOrigin}/api/dev/pilot-route-session-url`,
     `Android tunnel command: cloudflared tunnel --url ${input.guestOrigin}`,
     'Pilot flow: open merchant admin, generate the guest URL, then open it on Android Chrome.',
   ];

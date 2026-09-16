@@ -35,6 +35,12 @@ describe('merchant admin dev server', () => {
       assert.match(session.headers.get('content-type') ?? '', /application\/json/);
       assert.match(body.launchUrl ?? '', /^http:\/\/127\.0\.0\.1:4173\/\?token=/);
 
+      const sessionUrl = await fetch(`${baseUrl}/api/dev/pilot-route-session-url`);
+
+      assert.equal(sessionUrl.status, 200);
+      assert.match(sessionUrl.headers.get('content-type') ?? '', /text\/plain/);
+      assert.equal(await sessionUrl.text(), body.launchUrl);
+
       const initialReadiness = await fetch(
         `${baseUrl}/api/dev/pilot-readiness`,
       ).then(async (response) => ({
