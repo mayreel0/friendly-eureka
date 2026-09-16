@@ -80,7 +80,9 @@ describe('guest fallback real browser visual smoke', () => {
       result: string | null;
       caseCount: number;
       manualText: string;
+      readyText: string;
       manualBox: { width: number; height: number } | null;
+      readyBox: { width: number; height: number } | null;
     }>(`
       (() => {
         const result = document.querySelector('[data-visual-smoke-result]');
@@ -88,25 +90,38 @@ describe('guest fallback real browser visual smoke', () => {
           .querySelector('[data-visual-smoke-case="manual-fallback"] lechigo-guest-entry')
           ?.shadowRoot
           ?.querySelector('[data-screen="manual-fallback"]');
+        const ready = document
+          .querySelector('[data-visual-smoke-case="webxr-ready"] lechigo-guest-entry')
+          ?.shadowRoot
+          ?.querySelector('[data-screen="ready"]');
         const box = manual?.getBoundingClientRect();
+        const readyBox = ready?.getBoundingClientRect();
 
         return {
           result: result?.getAttribute('data-visual-smoke-result') ?? null,
           caseCount: document.querySelectorAll('[data-visual-smoke-case]').length,
           manualText: manual?.textContent ?? '',
+          readyText: ready?.textContent ?? '',
           manualBox: box ? { width: box.width, height: box.height } : null,
+          readyBox: readyBox ? { width: readyBox.width, height: readyBox.height } : null,
         };
       })()
     `);
 
     assert.equal(state.result, 'pass');
-    assert.equal(state.caseCount, 3);
+    assert.equal(state.caseCount, 4);
     assert.match(state.manualText, /Manual route guidance/);
     assert.match(state.manualText, /Follow the hallway to the restroom/);
     assert.match(state.manualText, /8 meters/);
+    assert.match(state.readyText, /Route ready/);
+    assert.match(state.readyText, /Destination: Restroom/);
+    assert.match(state.readyText, /First step: Follow the hallway to the restroom/);
     assert.ok(state.manualBox);
     assert.ok(state.manualBox.width > 0);
     assert.ok(state.manualBox.height > 0);
+    assert.ok(state.readyBox);
+    assert.ok(state.readyBox.width > 0);
+    assert.ok(state.readyBox.height > 0);
 
     const screenshot = await page.send<{ data: string }>('Page.captureScreenshot', {
       format: 'png',
