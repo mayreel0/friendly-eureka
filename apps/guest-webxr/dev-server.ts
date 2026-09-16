@@ -77,11 +77,14 @@ function handleApiRequest(input: {
   };
 }) {
   if (input.requestUrl.pathname === '/api/dev/guest-session') {
+    const guestUrl = `/?token=${encodeURIComponent(input.api.token)}`;
+
     writeJson(input.response, 200, {
       ok: true,
       token: input.api.token,
       expiresAt: input.api.expiresAt,
-      url: `/?token=${encodeURIComponent(input.api.token)}`,
+      url: guestUrl,
+      copyUrl: guestUrl,
     });
     return;
   }
