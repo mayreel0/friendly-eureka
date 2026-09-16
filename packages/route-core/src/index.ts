@@ -159,7 +159,14 @@ export function canActivateRoute(route: Route): RouteDecision {
     return { ok: false, reason: 'route-not-tested' };
   }
 
-  if (Date.parse(route.recordedAt) > Date.parse(route.testedAt)) {
+  const recordedAtMs = parseTimestamp(route.recordedAt);
+  const testedAtMs = parseTimestamp(route.testedAt);
+
+  if (recordedAtMs === undefined || testedAtMs === undefined) {
+    return { ok: false, reason: 'invalid-timestamp' };
+  }
+
+  if (recordedAtMs > testedAtMs) {
     return { ok: false, reason: 'route-test-stale' };
   }
 
