@@ -24,6 +24,7 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       ).then(async (response) => ({
         status: response.status,
         body: (await response.json()) as {
+          expiresAt?: string;
           launchUrl?: string;
           token?: string;
         },
@@ -51,12 +52,22 @@ describe('local merchant admin to guest WebXR launch flow', () => {
         body: (await response.json()) as {
           ok: boolean;
           route?: { id?: string };
+          session?: {
+            source?: string;
+            expiresAt?: string;
+            canViewPassword?: boolean;
+          };
         },
       }));
 
       assert.equal(route.status, 200);
       assert.equal(route.body.ok, true);
       assert.equal(route.body.route?.id, 'pilot-restroom-route');
+      assert.deepEqual(route.body.session, {
+        source: 'qr',
+        expiresAt: session.body.expiresAt,
+        canViewPassword: false,
+      });
     } finally {
       await Promise.all([close(merchantServer), close(guestServer)]);
     }
