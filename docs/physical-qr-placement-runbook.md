@@ -32,8 +32,8 @@ After cloudflared prints its HTTPS origin, restart the pilot servers with that o
 GUEST_ORIGIN=https://your-tunnel.trycloudflare.com npm run dev:pilot
 ```
 
-Keep the tunnel running. Restarting the pilot servers resets their development state.
-Complete the merchant pilot controls and generate a new guest URL. Scan the displayed QR with Android Chrome, or use **Download QR image** to save a PNG. The default loopback URL works only on the computer, not on the phone.
+Keep the tunnel running. Restarting restores merchant setup and placement evidence from the local state file, but discards the previous guest session URL.
+Complete any remaining merchant pilot controls and generate a new guest URL. Scan the displayed QR with Android Chrome, or use **Download QR image** to save a PNG. The default loopback URL works only on the computer, not on the phone.
 These QR images carry temporary development sessions and are for local simulation; they are not permanent venue QR credentials. A changed tunnel origin requires restarting with the new value and generating a new guest URL.
 
 ## Placement Criteria
