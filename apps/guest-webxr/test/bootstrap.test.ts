@@ -307,6 +307,20 @@ describe('guest WebXR browser bootstrap', () => {
       error: 'route-load-failed',
     });
   });
+
+  it('bounds a stalled route request so the guest can retry', async () => {
+    const loader = createHttpGuestRouteLoader({
+      timeoutMs: 5,
+      fetch: async (_url, options) => new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response('{}')), 1000);
+        options?.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(options.signal?.reason);
+        }, { once: true });
+      }),
+    });
+    await assert.rejects(loader({ token: 'test' }), { name: 'TimeoutError' });
+  });
 });
 
 function createTestDocument(): GuestFallbackDocument & {

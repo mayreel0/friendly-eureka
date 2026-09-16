@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing } from 'lit';
-import { resolveEntryState, type GuestEntryElementConfig } from './index.ts';
+import { resolveEntryState, type GuestEntryElementConfig, type NetworkState } from './index.ts';
 import { getLandmarkSteps } from './landmarks.ts';
 
 export class GuestEntryElement extends LitElement {
@@ -39,18 +39,34 @@ export class GuestEntryElement extends LitElement {
     this.requestUpdate();
   }
 
+  setNetwork(network: NetworkState) {
+    if (!this.config) return;
+    this.config = { ...this.config, network };
+    this.requestUpdate();
+  }
+
   protected render() {
     if (!this.config) return nothing;
+    if (!this.config.route && this.config.network === 'offline' && this.config.token) {
+      return html`<main data-screen="offline"><h1>No connection</h1>
+        <p role="status">Reconnect to load restroom directions.</p></main>`;
+    }
     const state = resolveEntryState(this.config);
     if (!this.config.route || !['ready', 'manual-fallback'].includes(state.screen)) {
+      const rescan = this.config.routeLoadStatus === 401 || this.config.routeLoadStatus === 403;
       const message = state.screen === 'scan-required'
         ? ['Scan the venue QR', 'Scan the QR at the entrance to open restroom directions.']
         : state.screen === 'loading'
           ? ['Loading directions', 'Please wait.']
           : state.screen === 'offline'
             ? ['No connection', 'Reconnect to load restroom directions.']
-            : ['Route unavailable', 'Scan the venue QR again or ask staff for directions.'];
-      return html`<main data-screen=${state.screen}><h1>${message[0]}</h1><p role="status">${message[1]}</p></main>`;
+            : rescan ? ['Session unavailable', 'Scan the venue QR again or ask staff for directions.']
+              : ['Could not load directions', 'Try again, or ask staff for directions.'];
+      return html`<main data-screen=${state.screen}><h1>${message[0]}</h1><p role="status">${message[1]}</p>
+        ${state.screen === 'error' && !rescan ? html`<button class="primary"
+          ?disabled=${this.config.network === 'offline'}
+          @click=${() => this.dispatchEvent(new CustomEvent('guest-retry', { bubbles: true, composed: true }))}>Try again</button>` : nothing}
+      </main>`;
     }
     const steps = getLandmarkSteps(this.config.route);
     if (!steps) return html`<main data-screen="error"><h1>Route unavailable</h1><p>Ask staff for restroom directions.</p></main>`;
@@ -61,6 +77,7 @@ export class GuestEntryElement extends LitElement {
     const recovery = this.config.trackingConfidence !== 'normal' || this.config.driftMeters > 1.5;
     return html`
       <main data-screen=${arrived ? 'arrived' : 'manual-fallback'}>
+        ${this.config.network === 'offline' ? html`<p data-network-status role="status">Offline. These directions remain available.</p>` : nothing}
         <header><p>Directions to ${destination}</p>
           <p data-progress>${arrived ? 'Route complete' : `Step ${this.stepIndex + 1} of ${steps.length}`}</p>
           <progress max=${steps.length} value=${this.stepIndex} aria-label="Completed route steps"></progress>
