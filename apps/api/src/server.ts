@@ -589,7 +589,14 @@ function verifyGuestToken(
     return { ok: false, status: 401, error: 'invalid-token' };
   }
 
-  if (Date.parse(at) > Date.parse(payload.expiresAt)) {
+  const checkedAt = Date.parse(at);
+  const expiresAt = Date.parse(payload.expiresAt);
+
+  if (!Number.isFinite(checkedAt) || !Number.isFinite(expiresAt)) {
+    return { ok: false, status: 401, error: 'invalid-token' };
+  }
+
+  if (checkedAt > expiresAt) {
     return { ok: false, status: 401, error: 'token-expired' };
   }
 
@@ -608,7 +615,14 @@ function verifyWifiProof(
     return { ok: false, status: 401, error: 'invalid-wifi-proof' };
   }
 
-  if (Date.parse(context.now()) > Date.parse(payload.expiresAt)) {
+  const checkedAt = Date.parse(context.now());
+  const expiresAt = Date.parse(payload.expiresAt);
+
+  if (!Number.isFinite(checkedAt) || !Number.isFinite(expiresAt)) {
+    return { ok: false, status: 401, error: 'invalid-wifi-proof' };
+  }
+
+  if (checkedAt > expiresAt) {
     return { ok: false, status: 401, error: 'wifi-proof-expired' };
   }
 

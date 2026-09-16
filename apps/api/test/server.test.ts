@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { describe, it } from 'node:test';
 
 import {
@@ -403,6 +404,41 @@ describe('api service contracts', () => {
     );
   });
 
+  it('rejects signed guest and Wi-Fi tokens with invalid expiry timestamps', () => {
+    const api = createActiveRouteContext();
+    setApiNow(api, '2026-09-01T10:32:00.000Z');
+
+    assert.deepEqual(
+      fetchGuestRoute(api, {
+        token: signTestToken(api.signingSecret, {
+          audience: 'guest-route',
+          storeId: 'store-1',
+          routeId: 'route-1',
+          routeVersion: 1,
+          source: 'qr',
+          expiresAt: 'not-a-date',
+          canViewPassword: false,
+        }),
+      }),
+      { ok: false, status: 401, error: 'invalid-token' },
+    );
+
+    assert.deepEqual(
+      createWifiSession(api, {
+        storeId: 'store-1',
+        routeId: 'route-1',
+        wifiProofToken: signTestToken(api.signingSecret, {
+          audience: 'wifi-proof',
+          proofId: 'proof-1',
+          storeId: 'store-1',
+          verifiedAt: '2026-09-01T10:31:00.000Z',
+          expiresAt: 'not-a-date',
+        }),
+      }),
+      { ok: false, status: 401, error: 'invalid-wifi-proof' },
+    );
+  });
+
   it('invalidates password sessions and QR material after password rotation', () => {
     const api = createActiveRouteContext();
     const qr = issueQrCredential(api, {
@@ -516,4 +552,15 @@ function createActiveRouteContext() {
   });
   activateRoute(api, { merchant, storeId: 'store-1', routeId: 'route-1' });
   return api;
+}
+
+function signTestToken(signingSecret: string, payload: Record<string, unknown>) {
+  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString(
+    'base64url',
+  );
+  const signature = createHmac('sha256', signingSecret)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  return `${encodedPayload}.${signature}`;
 }
