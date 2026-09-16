@@ -1,5 +1,5 @@
 import { createGuestWebxrDevServer } from '../apps/guest-webxr/dev-server.ts';
-import { createMerchantAdminDevServer } from '../apps/merchant-admin/dev-server.ts';
+import { createMerchantAdminDevServer, defaultPilotStateFile } from '../apps/merchant-admin/dev-server.ts';
 import { pathToFileURL } from 'node:url';
 
 const host = process.env.HOST ?? '127.0.0.1';
@@ -11,7 +11,10 @@ const merchantOrigin = `http://${host}:${merchantPort}`;
 
 if (isMainModule()) {
   const guestServer = createGuestWebxrDevServer();
-  const merchantServer = createMerchantAdminDevServer({ guestOrigin: publicGuestOrigin });
+  const merchantServer = createMerchantAdminDevServer({
+    guestOrigin: publicGuestOrigin,
+    stateFile: process.env.PILOT_STATE_FILE ?? defaultPilotStateFile,
+  });
 
   await Promise.all([
     listen(guestServer, guestPort, host),

@@ -32,7 +32,9 @@ The merchant dashboard uses Lit components and templates. Its dev server bundles
 npm --workspace @lechigo/merchant-admin run dev
 ```
 
-Merchant browser tests use real Chromium, including action persistence and error recovery. The pilot data remains local development data; restarting the dev server resets it.
+Merchant browser tests use real Chromium, including action persistence and error recovery. The pilot data remains local development data. Both dev commands save merchant setup, QR placement evidence, and follow-ups to `.lechigo/pilot-state.json` (ignored by Git), so restarting restores them. Guest session URLs are excluded from disk; generate a fresh guest URL after restart.
+
+Set `PILOT_STATE_FILE` to use a different local state file. Run only one merchant server per file. For a fresh pilot, stop the server and move the state file aside before restarting. If saved JSON is corrupt, startup fails without overwriting it; preserve a backup before repairing it.
 
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 

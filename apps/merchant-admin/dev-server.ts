@@ -4,6 +4,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { createPilotStateStore, PilotStateSaveError } from './pilot-state-store.ts';
 import { createApiContext } from '../api/src/server.ts';
 import { recordPilotRestroomRoute } from './src/index.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
@@ -19,6 +20,7 @@ import type {
 const currentFile = fileURLToPath(import.meta.url);
 const appRoot = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = resolve(appRoot, '../..');
+export const defaultPilotStateFile = join(repoRoot, '.lechigo', 'pilot-state.json');
 
 const contentTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -29,16 +31,22 @@ const contentTypes = new Map([
 ]);
 
 export function createMerchantAdminDevServer(
-  options: { appRoot?: string; repoRoot?: string; guestOrigin?: string } = {},
+  options: { appRoot?: string; repoRoot?: string; guestOrigin?: string; stateFile?: string } = {},
 ) {
   const resolvedAppRoot = resolve(options.appRoot ?? appRoot);
   const resolvedRepoRoot = resolve(options.repoRoot ?? repoRoot);
   const guestOrigin = resolveGuestOrigin(options.guestOrigin ?? process.env.GUEST_ORIGIN ?? 'http://127.0.0.1:4173');
-  let pilotState = createInitialPilotState();
+  const stateStore = createPilotStateStore({
+    file: options.stateFile,
+    initial: createInitialPilotState(),
+    parse: parseSavedPilotState,
+    forDisk: toPersistedPilotState,
+  });
 
   return createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+      let pilotState = stateStore.read();
 
       if (requestUrl.pathname === '/src/entry/bootstrap.ts') {
         const bundle = await build({
@@ -67,7 +75,8 @@ export function createMerchantAdminDevServer(
         }
 
         if (request.method === 'POST') {
-          pilotState = parsePilotStateUpdate(await readJson(request));
+          const update = parsePilotStateUpdate(await readJson(request));
+          pilotState = await stateStore.update(() => update);
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
@@ -96,10 +105,8 @@ export function createMerchantAdminDevServer(
         }
 
         if (request.method === 'POST') {
-          pilotState = {
-            ...pilotState,
-            recording: parsePilotRouteRecordingUpdate(await readJson(request)),
-          };
+          const recording = parsePilotRouteRecordingUpdate(await readJson(request));
+          pilotState = await stateStore.update((previous) => ({ ...previous, recording }));
           writeJson(response, 200, {
             ok: true,
             ...pilotState.recording,
@@ -125,10 +132,8 @@ export function createMerchantAdminDevServer(
         }
 
         if (request.method === 'POST') {
-          pilotState = {
-            ...pilotState,
-            readiness: parsePilotReadinessUpdate(await readJson(request)),
-          };
+          const readiness = parsePilotReadinessUpdate(await readJson(request));
+          pilotState = await stateStore.update((previous) => ({ ...previous, readiness }));
           writeJson(response, 200, {
             ok: true,
             ...pilotState.readiness,
@@ -180,7 +185,11 @@ export function createMerchantAdminDevServer(
         'content-type': contentTypes.get(extension) ?? 'text/plain; charset=utf-8',
       });
       response.end(body);
-    } catch {
+    } catch (error) {
+      if (error instanceof PilotStateSaveError) {
+        writeJson(response, 500, { ok: false, error: 'pilot-state-save-failed' });
+        return;
+      }
       response.writeHead(404, {
         'content-type': 'text/plain; charset=utf-8',
       });
@@ -231,6 +240,28 @@ type PilotState = {
   readiness: PilotReadinessState;
   followUps: PilotFollowUpAction[];
 };
+
+function toPersistedPilotState(state: PilotState): PilotState {
+  const withoutSession = <T extends PilotRouteRecordingState>(recording: T) => {
+    const { launchUrl: _launchUrl, ...saved } = recording;
+    return { ...saved, stage: recording.stage === 'launch-ready' ? 'active' as const : recording.stage };
+  };
+  return {
+    ...state,
+    recording: withoutSession(state.recording),
+    followUps: state.followUps.map((followUp) => ({ ...followUp, snapshot: withoutSession(followUp.snapshot) })),
+  };
+}
+
+function parseSavedPilotState(value: unknown): PilotState {
+  if (!isRecord(value) || !isRecord(value.recording) || !isRecord(value.readiness) ||
+    !Array.isArray(value.followUps) || !isRecord(value.readiness.qaResults) ||
+    typeof value.readiness.hasQrPlacement !== 'boolean' || typeof value.readiness.hasStaffFallbackNote !== 'boolean' ||
+    !['empty', 'recorded', 'tested', 'active', 'launch-ready'].includes(String(value.recording.stage))) {
+    throw new Error('Invalid saved pilot state');
+  }
+  return toPersistedPilotState(parsePilotStateUpdate(value));
+}
 
 function toPilotRouteRecordingScreenState(
   state: PilotState,
@@ -477,7 +508,7 @@ function isRepoImportPath(pathname: string) {
 
 if (currentFile === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4174);
-  const server = createMerchantAdminDevServer();
+  const server = createMerchantAdminDevServer({ stateFile: process.env.PILOT_STATE_FILE ?? defaultPilotStateFile });
 
   server.listen(port, '127.0.0.1', () => {
     console.log(`Merchant admin dev shell: http://127.0.0.1:${port}/`);
