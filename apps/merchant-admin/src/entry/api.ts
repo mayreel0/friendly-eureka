@@ -8,7 +8,6 @@ import type {
 import {
   createInitialPilotReadiness,
   createInitialPilotRouteRecording,
-  createInitialPilotState,
   toPilotReadinessApiState,
   toPilotRouteRecordingApiState,
 } from './state.ts';
@@ -50,7 +49,7 @@ export async function loadPilotState(
   const response = await fetch('/api/dev/pilot-state');
 
   if (!response.ok) {
-    return createInitialPilotState();
+    throw new Error('Failed to load pilot state');
   }
 
   return (await response.json()) as PilotDevStateApiState;
@@ -71,11 +70,12 @@ export async function savePilotState(
     return;
   }
 
-  await fetch('/api/dev/pilot-state', {
+  const response = await fetch('/api/dev/pilot-state', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(pilotState),
   });
+  if (!response.ok) throw new Error('Failed to save pilot state');
 }
 
 export async function savePilotReadinessState(

@@ -17,13 +17,22 @@ This repository is a greenfield monorepo.
 ## Commands
 
 ```bash
-npm install --package-lock-only --ignore-scripts
+npm install
+npx playwright install chromium
 npm test
 npm run typecheck
 npm run format
 ```
 
 The current implementation uses Node.js built-in TypeScript stripping for tests and `tsc --noEmit` for semantic type checking.
+
+The merchant dashboard uses Lit components and templates. Its dev server bundles the browser entry with esbuild; the existing dev command is unchanged:
+
+```bash
+npm --workspace @lechigo/merchant-admin run dev
+```
+
+Merchant browser tests use real Chromium, including action persistence and error recovery. The pilot data remains local development data; restarting the dev server resets it.
 
 ## Implemented Pilot Slice
 

@@ -3,9 +3,10 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 import { createApiContext } from '../api/src/server.ts';
 import { recordPilotRestroomRoute } from './src/index.ts';
-import { deriveNextPilotImplementationTarget } from './src/entry/index.ts';
+import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
 import type {
   PilotFollowUpAction,
   PilotQaResultNote,
@@ -38,6 +39,20 @@ export function createMerchantAdminDevServer(
   return createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+
+      if (requestUrl.pathname === '/src/entry/bootstrap.ts') {
+        const bundle = await build({
+          entryPoints: [join(resolvedAppRoot, 'src/entry/bootstrap.ts')],
+          bundle: true,
+          write: false,
+          format: 'esm',
+          platform: 'browser',
+          target: 'es2022',
+        });
+        response.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8' });
+        response.end(bundle.outputFiles[0].text);
+        return;
+      }
 
       if (requestUrl.pathname === '/api/dev/pilot-state') {
         if (request.method === 'GET') {
