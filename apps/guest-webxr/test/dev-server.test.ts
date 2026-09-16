@@ -140,6 +140,11 @@ describe('guest WebXR dev server', () => {
       assert.equal('password' in guestRoute.body.route, false);
       assert.equal(guestRoute.body.route.anchors.at(0)?.id, 'entrance');
       assert.equal(guestRoute.body.route.anchors.at(-1)?.id, 'restroom');
+      assert.deepEqual(guestRoute.body.session, {
+        source: 'qr',
+        expiresAt: devSession.body.expiresAt,
+        canViewPassword: false,
+      });
 
       const invalidRoute = await fetch(
         `${baseUrl}/api/guest/routes?token=invalid-token`,
