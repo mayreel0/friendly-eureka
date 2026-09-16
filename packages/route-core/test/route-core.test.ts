@@ -229,6 +229,22 @@ describe('route core', () => {
     );
   });
 
+  it('ignores Wi-Fi proof metadata for QR-backed guest sessions', () => {
+    const session = createGuestSession({
+      route,
+      source: 'qr',
+      issuedAt: '2026-09-01T12:00:00.000Z',
+      wifiProof: {
+        storeId: route.storeId,
+        verifiedAt: 'not-a-date',
+      },
+    });
+
+    assert.ok(session.ok);
+    assert.equal(session.session.canViewPassword, false);
+    assert.equal(session.session.proofExpiresAt, undefined);
+  });
+
   it('requires an active route before exposing route geometry', () => {
     assert.deepEqual(
       canExposeRoute({
