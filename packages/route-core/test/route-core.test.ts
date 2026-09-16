@@ -178,6 +178,18 @@ describe('route core', () => {
     });
   });
 
+  it('blocks activation when route test timestamps are invalid', () => {
+    assert.deepEqual(canActivateRoute({ ...route, recordedAt: 'not-a-date' }), {
+      ok: false,
+      reason: 'invalid-timestamp',
+    });
+
+    assert.deepEqual(canActivateRoute({ ...route, testedAt: 'not-a-date' }), {
+      ok: false,
+      reason: 'invalid-timestamp',
+    });
+  });
+
   it('creates short-lived guest sessions with password access only for in-store proof', () => {
     const qrSession = createGuestSession({
       route,
