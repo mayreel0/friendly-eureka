@@ -320,6 +320,16 @@ describe('api service contracts', () => {
     );
 
     setApiNow(api, '2026-09-01T10:33:00.000Z');
+    const guestRoute = fetchGuestRoute(api, {
+      token: allowed.token,
+    });
+    assert.ok(guestRoute.ok);
+    assert.deepEqual(guestRoute.session, {
+      source: 'wifi',
+      expiresAt: allowed.expiresAt,
+      canViewPassword: true,
+    });
+
     assert.deepEqual(
       fetchPassword(api, {
         token: allowed.token,
