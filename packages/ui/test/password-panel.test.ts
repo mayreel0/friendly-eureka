@@ -13,7 +13,8 @@ describe('guest password panel state', () => {
       }),
       {
         state: 'locked',
-        message: 'Connect to verified store Wi-Fi to view the restroom code.',
+        message:
+          'QR route sessions hide the restroom code. Connect to verified store Wi-Fi to view it.',
         visiblePassword: undefined,
       },
     );
