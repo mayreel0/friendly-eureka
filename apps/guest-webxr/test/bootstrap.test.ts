@@ -63,6 +63,11 @@ describe('guest WebXR browser bootstrap', () => {
       },
       routeLoader: async ({ token }) => ({
         ok: true,
+        session: {
+          source: 'qr',
+          expiresAt: '2026-09-01T12:20:00.000Z',
+          canViewPassword: false,
+        },
         route,
       }),
     });
@@ -80,6 +85,11 @@ describe('guest WebXR browser bootstrap', () => {
 
     assert.equal(document.host.configurations.length, 2);
     assert.equal(document.host.configurations[1]?.route?.id, 'route-1');
+    assert.deepEqual(document.host.configurations[1]?.session, {
+      source: 'qr',
+      expiresAt: '2026-09-01T12:20:00.000Z',
+      canViewPassword: false,
+    });
     assert.equal(registry.defineCalls.length, 1);
     assert.equal(registry.defineCalls[0]?.name, 'lechigo-guest-entry');
     assert.equal(
@@ -242,6 +252,11 @@ describe('guest WebXR browser bootstrap', () => {
         return new Response(
           JSON.stringify({
             ok: true,
+            session: {
+              source: 'qr',
+              expiresAt: '2026-09-01T12:20:00.000Z',
+              canViewPassword: false,
+            },
             route: {
               id: 'route-1',
               storeId: 'store-1',
@@ -267,6 +282,11 @@ describe('guest WebXR browser bootstrap', () => {
     assert.deepEqual(requests, ['/api/guest/routes?token=signed+token']);
     assert.equal(result.ok, true);
     assert.equal(result.ok ? result.route.id : undefined, 'route-1');
+    assert.deepEqual(result.ok ? result.session : undefined, {
+      source: 'qr',
+      expiresAt: '2026-09-01T12:20:00.000Z',
+      canViewPassword: false,
+    });
   });
 
   it('reports a stable error when the API route returns non-JSON', async () => {

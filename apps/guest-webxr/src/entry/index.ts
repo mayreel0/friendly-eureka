@@ -22,6 +22,7 @@ export type GuestFallbackDocument = {
 
 export type GuestEntryElementConfig = {
   route: SerializedRoute | undefined;
+  session?: GuestRouteSessionSummary;
   token: string | undefined;
   network: NetworkState;
   arSupport: ArSupport;
@@ -29,6 +30,12 @@ export type GuestEntryElementConfig = {
   currentAnchorId: string;
   trackingConfidence: TrackingConfidence;
   driftMeters: number;
+};
+
+export type GuestRouteSessionSummary = {
+  source: 'qr' | 'wifi';
+  expiresAt: string;
+  canViewPassword: boolean;
 };
 
 export type GuestEntryElementConstructor = {
@@ -222,6 +229,7 @@ export function renderGuestFallbackScreen(
   document: GuestFallbackDocument,
   input: {
     route: SerializedRoute;
+    session?: GuestRouteSessionSummary;
     currentAnchorId: string;
     trackingConfidence: TrackingConfidence;
     driftMeters: number;
@@ -237,6 +245,7 @@ export function renderGuestRouteScreen(
   document: GuestFallbackDocument,
   input: {
     route: SerializedRoute;
+    session?: GuestRouteSessionSummary;
     currentAnchorId: string;
     trackingConfidence: TrackingConfidence;
     driftMeters: number;
@@ -272,14 +281,24 @@ export function renderGuestRouteScreen(
       ? `Recovery: ${guidance.instruction}`
       : guidance.instruction;
 
+  const session = input.session
+    ? renderSessionSummary(document, input.session)
+    : undefined;
+
   if (summary.firstStepLabel) {
     const firstStepTarget = document.createElement('p');
     firstStepTarget.setAttribute('data-route-summary', 'first-step-target');
     firstStepTarget.textContent = `Next landmark: ${summary.firstStepLabel}`;
-    section.append(heading, destination, distance, firstStep, firstStepTarget, instruction);
+    section.append(heading, destination, distance, firstStep, firstStepTarget);
   } else {
-    section.append(heading, destination, distance, firstStep, instruction);
+    section.append(heading, destination, distance, firstStep);
   }
+
+  if (session) {
+    section.append(session);
+  }
+
+  section.append(instruction);
 
   const steps = document.createElement('ol');
   steps.setAttribute('data-route-steps', 'true');
@@ -303,6 +322,21 @@ export function renderGuestRouteScreen(
 
   section.append(steps, anchors);
   return section;
+}
+
+function renderSessionSummary(
+  document: GuestFallbackDocument,
+  session: GuestRouteSessionSummary,
+) {
+  const summary = document.createElement('p');
+  summary.setAttribute('data-session-summary', session.source);
+  summary.textContent = `${session.source.toUpperCase()} session expires at ${session.expiresAt}.`;
+
+  if (!session.canViewPassword) {
+    summary.textContent += ' Restroom password remains locked.';
+  }
+
+  return summary;
 }
 
 function describeEntryStatus(
@@ -367,6 +401,7 @@ export function registerGuestEntryElement(
         root.replaceChildren(
           renderGuestRouteScreen(document, {
             route: this.config.route,
+            session: this.config.session,
             currentAnchorId: this.config.currentAnchorId,
             trackingConfidence: this.config.trackingConfidence,
             driftMeters: this.config.driftMeters,
