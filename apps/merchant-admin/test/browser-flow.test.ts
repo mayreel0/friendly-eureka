@@ -2,12 +2,17 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { chromium, expect, type Page } from '@playwright/test';
+const jsQR = createRequire(import.meta.url)('jsqr') as typeof import('jsqr').default;
 import { createMerchantAdminDevServer } from '../dev-server.ts';
 
-async function withDashboard(run: (page: Page, origin: string) => Promise<void>) {
-  const server = createMerchantAdminDevServer();
+async function withDashboard(
+  run: (page: Page, origin: string) => Promise<void>,
+  guestOrigin?: string,
+) {
+  const server = createMerchantAdminDevServer({ guestOrigin });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -59,6 +64,7 @@ test('merchant actions work in a real browser and survive reload', async () => {
     await expect(screen).toHaveAttribute('data-stage', 'launch-ready');
     await expect(page.locator('[data-follow-ups="completed"] li')).toHaveCount(1);
     await expect(page.locator('[data-qr-placement-location]')).toHaveValue('Entrance');
+    await expect(page.getByRole('img', { name: 'Guest route QR code' })).toBeVisible();
     for (const [name, width] of [['desktop', 1280], ['mobile', 390]] as const) {
       await page.setViewportSize({ width, height: 844 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -125,6 +131,61 @@ test('saved evidence restores readiness and unsafe guest links stay inert', asyn
     await expect(page.locator('[data-checklist-id="place-qr"]')).toHaveAttribute('data-complete', 'true');
     await expect(page.locator('[data-qa-note="place-qr"]')).toContainText('<img src=x onerror=alert(1)>');
     await expect(page.locator('a[data-launch-url]')).toHaveCount(0);
+    await expect(page.getByRole('img', { name: 'Guest route QR code' })).toHaveCount(0);
     await expect(page.locator('[data-qr-placement-evidence-summary] img')).toHaveCount(0);
+  });
+});
+
+test('downloadable QR decodes to the configured phone URL after reload', async () => {
+  const guestOrigin = 'https://pilot.example.com';
+  await withDashboard(async (page, origin) => {
+    const sessionResponse = await page.request.get(`${origin}/api/dev/pilot-route-session`);
+    const session = await sessionResponse.json() as { launchUrl: string };
+    assert.equal(new URL(session.launchUrl).origin, guestOrigin);
+    await page.request.post(`${origin}/api/dev/pilot-state`, { data: {
+      recording: { stage: 'launch-ready', launchUrl: session.launchUrl },
+      readiness: { hasQrPlacement: true, hasStaffFallbackNote: true, qaResults: {} },
+      followUps: [],
+    } });
+    await page.goto(origin);
+    await page.reload();
+    const qr = page.getByRole('img', { name: 'Guest route QR code' });
+    await expect(qr).toBeVisible();
+    const pixels = await qr.evaluate(async (element) => {
+      const image = element as HTMLImageElement;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      return { width: canvas.width, height: canvas.height,
+        data: Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data) };
+    });
+    const decoded = jsQR(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height);
+    assert.equal(decoded?.data, session.launchUrl);
+    await expect(page.locator('a[data-launch-url]')).toHaveAttribute('href', session.launchUrl);
+    const downloadLink = page.getByRole('link', { name: 'Download QR image' });
+    assert.equal(await downloadLink.getAttribute('href'), await qr.getAttribute('src'));
+    const downloaded = page.waitForEvent('download');
+    await downloadLink.click();
+    const download = await downloaded;
+    assert.equal(download.suggestedFilename(), 'lechigo-pilot-guest-qr.png');
+    assert.equal(await download.failure(), null);
+  }, guestOrigin);
+});
+
+test('QR overflow reports an error while keeping the guest link available', async () => {
+  await withDashboard(async (page, origin) => {
+    const launchUrl = `https://pilot.example.com/?token=${'a'.repeat(5000)}`;
+    await page.request.post(`${origin}/api/dev/pilot-state`, { data: {
+      recording: { stage: 'launch-ready', launchUrl },
+      readiness: { hasQrPlacement: true, hasStaffFallbackNote: true, qaResults: {} },
+      followUps: [],
+    } });
+    await page.goto(origin);
+    await expect(page.getByRole('alert')).toContainText('QR image unavailable');
+    await expect(page.locator('a[data-launch-url]')).toHaveAttribute('href', launchUrl);
+    await expect(page.getByRole('link', { name: 'Download QR image' })).toHaveCount(0);
   });
 });

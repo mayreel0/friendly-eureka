@@ -1,6 +1,7 @@
 import { html, nothing } from 'lit';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { repeat } from 'lit/directives/repeat.js';
+import './guest-qr.ts';
 import { createPilotRouteRecordingView } from './state.ts';
 import type { PilotRouteRecordingScreenActionId, PilotRouteRecordingScreenState } from './types.ts';
 
@@ -74,8 +75,8 @@ export function renderPilotRouteRecordingScreen(
           <div data-dashboard-panel="guest-launch">
             <h2>Guest launch</h2>
             ${launchUrl ? html`
+              <lechigo-guest-qr .url=${launchUrl}></lechigo-guest-qr>
               <a data-launch-url="guest-webxr" href=${launchUrl}>${launchUrl}</a>
-              <p data-launch-copy-url="guest-webxr">${launchUrl}</p>
             ` : html`<p data-launch-url="guest-webxr">Guest URL unavailable</p>`}
           </div>
           <div data-dashboard-panel="follow-ups">

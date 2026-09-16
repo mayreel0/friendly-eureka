@@ -6,18 +6,19 @@ const host = process.env.HOST ?? '127.0.0.1';
 const guestPort = Number(process.env.GUEST_PORT ?? 4173);
 const merchantPort = Number(process.env.MERCHANT_PORT ?? 4174);
 const guestOrigin = `http://${host}:${guestPort}`;
+const publicGuestOrigin = process.env.GUEST_ORIGIN ?? guestOrigin;
 const merchantOrigin = `http://${host}:${merchantPort}`;
 
 if (isMainModule()) {
   const guestServer = createGuestWebxrDevServer();
-  const merchantServer = createMerchantAdminDevServer({ guestOrigin });
+  const merchantServer = createMerchantAdminDevServer({ guestOrigin: publicGuestOrigin });
 
   await Promise.all([
     listen(guestServer, guestPort, host),
     listen(merchantServer, merchantPort, host),
   ]);
 
-  for (const line of createDevPilotInstructions({ guestOrigin, merchantOrigin })) {
+  for (const line of createDevPilotInstructions({ guestOrigin, merchantOrigin, publicGuestOrigin })) {
     console.log(line);
   }
 
@@ -60,6 +61,8 @@ export function createDevPilotInstructions(input) {
     `Dev guest session JSON: ${input.guestOrigin}/api/dev/guest-session`,
     `Merchant-generated guest URL text: ${input.merchantOrigin}/api/dev/pilot-route-session-url`,
     `Android tunnel command: cloudflared tunnel --url ${input.guestOrigin}`,
+    ...(input.publicGuestOrigin && input.publicGuestOrigin !== input.guestOrigin
+      ? [`Guest QR origin: ${input.publicGuestOrigin}`] : []),
     'Pilot flow: open merchant admin, generate the guest URL, then open it on Android Chrome.',
   ];
 }
