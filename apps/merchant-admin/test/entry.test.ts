@@ -140,6 +140,30 @@ describe('merchant admin browser entry', () => {
     );
   });
 
+  it('renders a copy-safe guest launch URL when launch is ready', () => {
+    const document = createTestDocument();
+    const screen = renderPilotRouteRecordingScreen(
+      document,
+      {
+        ...createInitialPilotRouteRecordingScreenState(),
+        stage: 'launch-ready',
+        hasQrPlacement: true,
+        hasStaffFallbackNote: true,
+        qaResults: {},
+        followUps: [],
+        routeId: 'pilot-restroom-route',
+        launchUrl: '/?token=test-token',
+      },
+      {
+        guestOrigin: 'http://127.0.0.1:4173',
+      },
+    );
+
+    assert.match(screen.textContent ?? '', /http:\/\/127\.0\.0\.1:4173\/\?token=test-token/);
+    assert.equal(screen.querySelectorAll('[data-launch-url]').length, 1);
+    assert.equal(screen.querySelectorAll('[data-launch-copy-url]').length, 1);
+  });
+
   it('tracks pilot QA checklist before generating a launch URL', async () => {
     const registry = createTestCustomElementRegistry();
     const document = createTestDocument();
