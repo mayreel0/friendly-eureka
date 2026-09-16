@@ -284,20 +284,26 @@ export function renderPilotRouteRecordingScreen(
     qrEvidencePanel.append(button);
   }
 
-  const launch = document.createElement('a');
   const launchUrl = toGuestLaunchUrl(view.launchUrl, options.guestOrigin);
-  launch.setAttribute('data-launch-url', 'guest-webxr');
-  launch.href = launchUrl ?? '';
-  launch.textContent = launchUrl ?? 'Guest URL unavailable';
 
   const launchPanel = createDashboardPanel(document, 'guest-launch', 'Guest launch');
-  launchPanel.append(launch);
 
   if (launchUrl) {
+    const launch = document.createElement('a');
+    launch.setAttribute('data-launch-url', 'guest-webxr');
+    launch.href = launchUrl;
+    launch.textContent = launchUrl;
+    launchPanel.append(launch);
+
     const copyTarget = document.createElement('p');
     copyTarget.setAttribute('data-launch-copy-url', 'guest-webxr');
     copyTarget.textContent = launchUrl;
     launchPanel.append(copyTarget);
+  } else {
+    const launchUnavailable = document.createElement('p');
+    launchUnavailable.setAttribute('data-launch-url', 'guest-webxr');
+    launchUnavailable.textContent = 'Guest URL unavailable';
+    launchPanel.append(launchUnavailable);
   }
 
   const target = document.createElement('p');

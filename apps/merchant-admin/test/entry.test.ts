@@ -126,12 +126,15 @@ describe('merchant admin browser entry', () => {
     assert.match(screen.textContent ?? '', /Pilot readiness/);
     assert.match(screen.textContent ?? '', /QR placement evidence/);
     assert.match(screen.textContent ?? '', /Guest launch/);
+    assert.match(screen.textContent ?? '', /Guest URL unavailable/);
     assert.match(screen.textContent ?? '', /Open follow-ups/);
     assert.equal(screen.querySelectorAll('[data-dashboard-panel]').length, 7);
     assert.equal(screen.querySelectorAll('[data-progress-summary]').length, 1);
     assert.equal(screen.querySelectorAll('[data-action-id]').length, 10);
     assert.equal(screen.querySelectorAll('[data-checklist-id]').length, 4);
     assert.equal(screen.querySelectorAll('[data-qr-placement-location]').length, 1);
+    assert.equal(screen.querySelectorAll('[data-launch-copy-url]').length, 0);
+    assert.equal(screen.querySelectorAll('[data-launch-url]').at(0)?.getAttribute('href'), null);
     assert.match(screen.textContent ?? '', /Pending: Record route/);
     assert.match(screen.textContent ?? '', /Pending: Place QR/);
     assert.equal(
