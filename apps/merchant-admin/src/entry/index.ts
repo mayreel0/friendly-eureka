@@ -216,9 +216,9 @@ function readQrPlacementEvidence(screen: {
 }) {
   return {
     location:
-      screen.querySelectorAll('[data-qr-placement-location]').at(0)?.value ?? '',
+      screen.querySelectorAll('[data-qr-placement-location]')[0]?.value ?? '',
     orientation:
-      screen.querySelectorAll('[data-qr-placement-orientation]').at(0)?.value ?? '',
-    note: screen.querySelectorAll('[data-qr-placement-note]').at(0)?.value ?? '',
+      screen.querySelectorAll('[data-qr-placement-orientation]')[0]?.value ?? '',
+    note: screen.querySelectorAll('[data-qr-placement-note]')[0]?.value ?? '',
   };
 }
