@@ -1,224 +1,115 @@
-import {
-  generateGuestSession,
-  loadPilotState,
-  savePilotReadinessState,
-  savePilotRouteRecordingState,
-  savePilotState,
-} from './api.ts';
+import { LitElement } from 'lit';
+import { generateGuestSession, loadPilotState, savePilotState } from './api.ts';
 import {
   applyLocalPilotRouteRecordingAction,
   completePilotFollowUp,
   createInitialPilotRouteRecordingScreenState,
-  createInitialPilotState,
-  isPilotReadinessAction,
-  isPilotRouteRecordingAction,
   recordPilotFollowUp,
   recordQrPlacementEvidence,
 } from './state.ts';
-import type {
-  MerchantAdminElementConstructor,
-  MerchantAdminElementEnvironment,
-  PilotRouteRecordingScreenActionId,
-} from './types.ts';
-import { renderPilotRouteRecordingScreen } from './view.ts';
+import type { MerchantAdminElementEnvironment, PilotRouteRecordingScreenActionId } from './types.ts';
+import { renderPilotRouteRecordingScreen, type QrPlacementDraft } from './view.ts';
+import { merchantStyles } from './styles.ts';
 
 export type * from './types.ts';
-export {
-  applyLocalPilotRouteRecordingAction,
-  completePilotFollowUp,
-  createInitialPilotRouteRecordingScreenState,
-  createInitialPilotState,
-  createPilotRouteRecordingView,
-  deriveNextPilotImplementationTarget,
-  isPilotReadinessAction,
-  isPilotRouteRecordingAction,
-  recordPilotFollowUp,
-  recordQrPlacementEvidence,
-} from './state.ts';
-export {
-  generateGuestSession,
-  loadPilotState,
-  savePilotReadinessState,
-  savePilotRouteRecordingState,
-  savePilotState,
-} from './api.ts';
+export * from './state.ts';
+export * from './api.ts';
 export { renderPilotRouteRecordingScreen } from './view.ts';
 
 export function registerMerchantAdminElement(
-  environment: MerchantAdminElementEnvironment,
+  environment: MerchantAdminElementEnvironment = {},
   tagName = 'lechigo-merchant-admin',
-): MerchantAdminElementConstructor {
-  const existing = environment.customElements.get(tagName);
+) {
+  const existing = customElements.get(tagName);
+  if (existing) return existing;
 
-  if (existing) {
-    return existing;
-  }
-
-  const { HTMLElement, document } = environment;
-
-  class LechigoMerchantAdminElement extends HTMLElement {
+  class LechigoMerchantAdminElement extends LitElement {
+    static styles = merchantStyles;
     private state = createInitialPilotRouteRecordingScreenState();
+    private draft: QrPlacementDraft = { location: '', orientation: '', note: '' };
+    private draftEdited = false;
+    private busy = true;
+    private error = '';
 
-    connectedCallback() {
-      this.render();
+    protected firstUpdated() {
       void this.loadPersistedState();
     }
 
-    private render() {
-      const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
-      const screen = renderPilotRouteRecordingScreen(document, this.state, {
+    protected render() {
+      return renderPilotRouteRecordingScreen(this.state, {
         guestOrigin: environment.guestOrigin ?? 'http://127.0.0.1:4173',
+        busy: this.busy,
+        error: this.error,
+        draft: this.draft,
+        onDraft: (field, value) => {
+          this.draftEdited = true;
+          this.draft = { ...this.draft, [field]: value };
+        },
+        onAction: (id, followUpId) => { void this.applyAction(id, followUpId); },
       });
-
-      for (const button of screen.querySelectorAll('[data-action-id]')) {
-        const actionId = button.getAttribute(
-          'data-action-id',
-        ) as PilotRouteRecordingScreenActionId | null;
-        const followUpId = button.getAttribute('data-follow-up-id');
-
-        if (!actionId || button.disabled) {
-          continue;
-        }
-
-        button.addEventListener('click', () => {
-          void this.applyAction(actionId, {
-            followUpId: followUpId ?? undefined,
-            qrPlacementEvidence: readQrPlacementEvidence(screen),
-          });
-        });
-      }
-
-      root.replaceChildren(screen);
     }
 
-    private async applyAction(
-      actionId: PilotRouteRecordingScreenActionId,
-      options: {
-        followUpId?: string;
-        qrPlacementEvidence: {
-          location: string;
-          orientation: string;
-          note: string;
-        };
-      },
-    ) {
-      if (actionId === 'generate-guest-url') {
-        const guestSession = await generateGuestSession(environment);
-        this.state = {
-          ...this.state,
-          stage: 'launch-ready',
-          launchUrl: guestSession.launchUrl,
-        };
-        this.render();
-        await savePilotRouteRecordingState(environment, this.state).catch(
-          () => undefined,
-        );
-        return;
-      }
-
-      if (actionId === 'record-follow-up') {
-        this.state = recordPilotFollowUp(this.state, environment.now);
-        this.render();
-        await savePilotState(environment, this.state).catch(() => undefined);
-        return;
-      }
-
-      if (actionId === 'record-qr-placement-evidence') {
-        this.state = recordQrPlacementEvidence(
-          this.state,
-          options.qrPlacementEvidence,
-          environment.now,
-        );
-        this.render();
-        await savePilotReadinessState(environment, this.state).catch(
-          () => undefined,
-        );
-        return;
-      }
-
-      if (actionId === 'complete-follow-up') {
-        if (options.followUpId) {
-          this.state = completePilotFollowUp(this.state, options.followUpId);
-          this.render();
-          await savePilotState(environment, this.state).catch(() => undefined);
+    private async applyAction(id: PilotRouteRecordingScreenActionId, followUpId?: string) {
+      if (this.busy) return;
+      this.busy = true;
+      this.error = '';
+      this.requestUpdate();
+      try {
+        let next = this.state;
+        if (id === 'generate-guest-url') {
+          const session = await generateGuestSession(environment);
+          next = { ...next, stage: 'launch-ready', launchUrl: session.launchUrl };
+        } else if (id === 'record-follow-up') {
+          next = recordPilotFollowUp(next, environment.now);
+        } else if (id === 'complete-follow-up') {
+          if (followUpId) next = completePilotFollowUp(next, followUpId);
+        } else if (id === 'record-qr-placement-evidence') {
+          next = recordQrPlacementEvidence(next, this.draft, environment.now);
+        } else {
+          next = applyLocalPilotRouteRecordingAction(next, id, environment.now);
         }
-        return;
-      }
-
-      this.state = applyLocalPilotRouteRecordingAction(
-        this.state,
-        actionId,
-        environment.now,
-      );
-      this.render();
-
-      if (isPilotReadinessAction(actionId)) {
-        await savePilotReadinessState(environment, this.state).catch(
-          () => undefined,
-        );
-      }
-
-      if (isPilotRouteRecordingAction(actionId)) {
-        await savePilotRouteRecordingState(environment, this.state).catch(
-          () => undefined,
-        );
+        await savePilotState(environment, next);
+        this.state = next;
+      } catch {
+        this.error = 'Could not save this action. Please try again.';
+      } finally {
+        this.busy = false;
+        this.requestUpdate();
       }
     }
 
     private async loadPersistedState() {
-      const loadingFromState = this.state;
-      const pilotState = await loadPilotState(environment).catch(() =>
-        createInitialPilotState(),
-      );
-
-      if (this.state !== loadingFromState) {
-        return;
+      try {
+        const pilot = await loadPilotState(environment);
+        const evidence = pilot.readiness.qrPlacementEvidence;
+        this.state = {
+          ...this.state,
+          ...pilot.recording,
+          ...pilot.readiness,
+          followUps: pilot.followUps ?? [],
+          ...(evidence ? {
+            hasQrPlacement: true,
+            qaResults: {
+              ...pilot.readiness.qaResults,
+              'place-qr': pilot.readiness.qaResults['place-qr'] ?? {
+                summary: `QR placed at ${evidence.location}; ${evidence.orientation}`,
+                recordedAt: evidence.recordedAt,
+              },
+            },
+          } : {}),
+        };
+        if (evidence && !this.draftEdited) {
+          this.draft = { location: evidence.location, orientation: evidence.orientation, note: evidence.note };
+        }
+        this.busy = false;
+      } catch {
+        this.error = 'Could not load saved state. Reload to try again.';
+      } finally {
+        this.requestUpdate();
       }
-
-      this.state = {
-        ...this.state,
-        ...pilotState.recording,
-        ...normalizeLoadedReadiness(pilotState.readiness),
-        followUps: pilotState.followUps ?? [],
-      };
-      this.render();
     }
   }
 
-  environment.customElements.define(tagName, LechigoMerchantAdminElement);
+  customElements.define(tagName, LechigoMerchantAdminElement);
   return LechigoMerchantAdminElement;
-}
-
-function normalizeLoadedReadiness(
-  readiness: ReturnType<typeof createInitialPilotState>['readiness'],
-) {
-  if (!readiness.qrPlacementEvidence) {
-    return readiness;
-  }
-
-  return {
-    ...readiness,
-    hasQrPlacement: true,
-    qaResults: {
-      ...readiness.qaResults,
-      'place-qr': readiness.qaResults['place-qr'] ?? {
-        summary: `QR placed at ${readiness.qrPlacementEvidence.location}; ${readiness.qrPlacementEvidence.orientation}`,
-        recordedAt: readiness.qrPlacementEvidence.recordedAt,
-      },
-    },
-  };
-}
-
-function readQrPlacementEvidence(screen: {
-  querySelectorAll(selector: string): {
-    value: string;
-  }[];
-}) {
-  return {
-    location:
-      screen.querySelectorAll('[data-qr-placement-location]')[0]?.value ?? '',
-    orientation:
-      screen.querySelectorAll('[data-qr-placement-orientation]')[0]?.value ?? '',
-    note: screen.querySelectorAll('[data-qr-placement-note]')[0]?.value ?? '',
-  };
 }

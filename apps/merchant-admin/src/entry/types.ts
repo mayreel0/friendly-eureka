@@ -99,35 +99,7 @@ export type PilotDevStateApiState = {
   nextTarget?: PilotImplementationTarget;
 };
 
-export type MerchantAdminElement = {
-  shadowRoot: ShadowRootLike | null;
-  attachShadow(init: { mode: 'open' }): ShadowRootLike;
-  connectedCallback(): void;
-  click(): void;
-};
-
-export type MerchantAdminDocument = {
-  createElement(tagName: string): MerchantAdminDomElement;
-};
-
-export type MerchantAdminElementConstructor = new () => {
-  shadowRoot: ShadowRootLike | null;
-  attachShadow(init: { mode: 'open' }): ShadowRootLike;
-  connectedCallback(): void;
-};
-
-export type MerchantAdminElementRegistry = {
-  get(tagName: string): MerchantAdminElementConstructor | undefined;
-  define(tagName: string, constructor: MerchantAdminElementConstructor): void;
-};
-
 export type MerchantAdminElementEnvironment = {
-  customElements: MerchantAdminElementRegistry;
-  HTMLElement: new () => {
-    shadowRoot: ShadowRootLike | null;
-    attachShadow(init: { mode: 'open' }): ShadowRootLike;
-  };
-  document: MerchantAdminDocument;
   generateGuestUrl?: () => Promise<{ launchUrl: string }>;
   loadPilotState?: () => Promise<PilotDevStateApiState>;
   loadReadiness?: () => Promise<PilotReadinessApiState>;
@@ -137,21 +109,4 @@ export type MerchantAdminElementEnvironment = {
   saveRouteRecording?: (state: PilotRouteRecordingApiState) => Promise<void>;
   guestOrigin?: string;
   now?: () => string;
-};
-
-export type MerchantAdminDomElement = {
-  textContent: string | null;
-  disabled: boolean;
-  href: string;
-  value: string;
-  append(...nodes: MerchantAdminDomElement[]): void;
-  appendChild(node: MerchantAdminDomElement): MerchantAdminDomElement;
-  setAttribute(name: string, value: string): void;
-  getAttribute(name: string): string | null;
-  querySelectorAll(selector: string): MerchantAdminDomElement[];
-  addEventListener(type: 'click', listener: () => void): void;
-};
-
-export type ShadowRootLike = {
-  replaceChildren(...nodes: MerchantAdminDomElement[]): void;
 };
