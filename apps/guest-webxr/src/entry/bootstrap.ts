@@ -317,20 +317,3 @@ export function createDemoGuestEntryConfig(): GuestEntryElementConfig {
     driftMeters: 0.2,
   };
 }
-
-const browserGlobal = globalThis as unknown as Partial<GuestBrowserEnvironment>;
-
-if (
-  browserGlobal.customElements &&
-  browserGlobal.HTMLElement &&
-  browserGlobal.document
-) {
-  bootstrapGuestEntry({
-    customElements: browserGlobal.customElements,
-    HTMLElement: browserGlobal.HTMLElement,
-    document: browserGlobal.document,
-    fetch: browserGlobal.fetch,
-    location: browserGlobal.location,
-    navigator: browserGlobal.navigator,
-  });
-}
