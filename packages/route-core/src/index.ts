@@ -218,11 +218,11 @@ export function createGuestSession(input: {
     input.source === 'wifi'
       ? validateWifiProof(input.route, input.wifiProof, input.issuedAt)
       : undefined;
-  const proofExpiresAt = input.wifiProof
+  const proofExpiresAt = input.source === 'wifi' && input.wifiProof
     ? addMsToTimestamp(input.wifiProof.verifiedAt, WIFI_PROOF_TTL_MS)
     : undefined;
 
-  if (input.wifiProof && proofExpiresAt === undefined) {
+  if (input.source === 'wifi' && input.wifiProof && proofExpiresAt === undefined) {
     return { ok: false, reason: 'invalid-timestamp' };
   }
 
