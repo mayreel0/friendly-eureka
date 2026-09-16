@@ -447,6 +447,52 @@ describe('merchant admin browser entry', () => {
     });
   });
 
+  it('recovers QR placement readiness from saved placement evidence', async () => {
+    const registry = createTestCustomElementRegistry();
+    const document = createTestDocument();
+
+    registerMerchantAdminElement({
+      customElements: registry,
+      HTMLElement: TestMerchantHTMLElement,
+      document,
+      loadPilotState: async () => ({
+        recording: {
+          stage: 'active',
+          routeId: 'pilot-restroom-route',
+        },
+        readiness: {
+          hasQrPlacement: false,
+          hasStaffFallbackNote: false,
+          qaResults: {},
+          qrPlacementEvidence: {
+            location: 'Entrance counter',
+            orientation: 'Guest-facing',
+            note: 'Visible from queue',
+            recordedAt: '2026-09-01T10:10:00.000Z',
+          },
+        },
+      }),
+      now: () => '2026-09-01T10:20:00.000Z',
+    });
+
+    const MerchantAdminElement = registry.get('lechigo-merchant-admin');
+    assert.ok(MerchantAdminElement);
+
+    const element = new MerchantAdminElement() as unknown as TestMerchantHTMLElement & {
+      connectedCallback(): void;
+    };
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const root = element.shadowRoot;
+    assert.ok(root);
+    assert.match(root.textContent ?? '', /QR placed at Entrance counter; Guest-facing/);
+    assert.equal(
+      root.querySelectorAll('[data-checklist-id]').at(2)?.getAttribute('data-complete'),
+      'true',
+    );
+  });
+
   it('records physical QR placement evidence through the dashboard', async () => {
     const registry = createTestCustomElementRegistry();
     const document = createTestDocument();
