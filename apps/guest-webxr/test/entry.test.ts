@@ -12,6 +12,7 @@ import {
   renderGuestFallbackScreen,
   resolveEntryState,
   summarizeRoute,
+  summarizeRouteSteps,
 } from '../src/entry/index.ts';
 
 const route = {
@@ -151,6 +152,17 @@ describe('guest WebXR entry', () => {
     });
   });
 
+  it('summarizes route steps for guest-visible instructions', () => {
+    assert.deepEqual(summarizeRouteSteps(route), [
+      {
+        segmentId: 'segment-1',
+        instruction: 'Follow the hallway to the restroom.',
+        distanceLabel: '8 meters',
+        landmarkLabel: 'Restroom',
+      },
+    ]);
+  });
+
   it('returns recovery guidance when AR drift is excessive', () => {
     assert.deepEqual(
       buildArGuidance({
@@ -230,6 +242,8 @@ describe('guest WebXR entry', () => {
     assert.match(screen.textContent ?? '', /First step: Follow the hallway to the restroom\./);
     assert.match(screen.textContent ?? '', /Follow the hallway to the restroom\./);
     assert.match(screen.textContent ?? '', /Distance: 8 meters/);
+    assert.equal(screen.querySelectorAll('[data-route-step-id]').length, 1);
+    assert.match(screen.textContent ?? '', /Next: Restroom/);
     assert.equal(screen.querySelectorAll('[data-anchor-id]').length, 2);
   });
 
