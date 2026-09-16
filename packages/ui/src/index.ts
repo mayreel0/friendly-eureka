@@ -8,7 +8,15 @@ export function resolvePasswordPanelState(input: {
 }) {
   const expiryLabel = input.expiresAt ? ` Session expires at ${input.expiresAt}.` : '';
 
-  if (!input.canViewPassword || input.source !== 'wifi') {
+  if (input.source === 'qr') {
+    return {
+      state: 'locked',
+      message: `QR route sessions hide the restroom code. Connect to verified store Wi-Fi to view it.${expiryLabel}`,
+      visiblePassword: undefined,
+    };
+  }
+
+  if (!input.canViewPassword) {
     return {
       state: 'locked',
       message: `Connect to verified store Wi-Fi to view the restroom code.${expiryLabel}`,
