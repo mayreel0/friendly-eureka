@@ -12,9 +12,22 @@ The result should be enough for a later reviewer to understand where the QR was 
 
 - Confirm the route is the intended pilot restroom route.
 - Confirm the route has passed guest-mode activation testing.
+- For local Android checks, start both pilot dev shells with `npm run dev:pilot`.
 - Prepare a QR print or display that points to the pilot guest entry.
 - Bring at least one target Android test device and record the device, OS, browser, and browser version.
 - Keep raw restroom passwords, private tokens, cookies, and internal hostnames out of photos and notes.
+
+## Local Android Tunnel Setup
+
+When testing from a physical Android device against the local dev server:
+
+```bash
+npm run dev:pilot
+cloudflared tunnel --url http://127.0.0.1:4173
+```
+
+Use the Cloudflare quick tunnel URL on Android Chrome.
+Generate a local guest launch URL from the merchant admin, or fetch the dev session JSON from `/api/dev/guest-session` and copy only the `url` value.
 
 ## Placement Criteria
 
