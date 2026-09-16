@@ -113,6 +113,18 @@ describe('guest WebXR dev server', () => {
         `/?token=${encodeURIComponent(devSession.body.token)}`,
       );
 
+      const devSessionUrl = await fetch(
+        `${baseUrl}/api/dev/guest-session-url`,
+      ).then(async (response) => ({
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        body: await response.text(),
+      }));
+
+      assert.equal(devSessionUrl.status, 200);
+      assert.match(devSessionUrl.contentType ?? '', /text\/plain/);
+      assert.equal(devSessionUrl.body, devSession.body.url);
+
       const guestRoute = await fetch(
         `${baseUrl}/api/guest/routes?token=${encodeURIComponent(devSession.body.token)}`,
       ).then(async (response) => ({
