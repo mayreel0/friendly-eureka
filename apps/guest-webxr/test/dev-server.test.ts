@@ -50,7 +50,7 @@ describe('guest WebXR dev server', () => {
 
       assert.match(html.contentType ?? '', /text\/html/);
       assert.match(html.body, /<lechigo-guest-entry data-guest-entry>/);
-      assert.match(html.body, /src="\.\/src\/entry\/bootstrap\.ts"/);
+      assert.match(html.body, /src="\.\/src\/entry\/browser\.ts"/);
       assert.equal(visualSmokeHtml.status, 200);
       assert.match(visualSmokeHtml.contentType ?? '', /text\/html/);
       assert.match(visualSmokeHtml.body, /data-visual-smoke-root/);
