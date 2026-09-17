@@ -96,7 +96,8 @@ export function renderPilotRouteRecordingScreen(
           <div data-dashboard-panel="guest-launch">
             <h2>Guest launch</h2>
             ${entryUrl ? html`<h3>Entrance QR</h3><a data-entry-url href=${entryUrl}>Open entrance link</a>
-              <lechigo-guest-qr .url=${entryUrl}></lechigo-guest-qr>` : nothing}
+              <lechigo-guest-qr .url=${entryUrl}></lechigo-guest-qr>
+              <a href="/print/entrance" target="_blank" rel="noopener">Print entrance sign</a>` : nothing}
             ${launchUrl ? html`
               ${!entryUrl ? html`<lechigo-guest-qr .url=${launchUrl}></lechigo-guest-qr>` : nothing}
               ${entryUrl ? html`<h3>Temporary guest session</h3>` : nothing}

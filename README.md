@@ -54,6 +54,8 @@ Record a **Route test note** before choosing **Mark test passed** or **Mark test
 
 The connected dashboard's **Entrance QR** now contains an entry link rather than a 20-minute token. Each scan issues a fresh temporary session. The same printed QR survives server restart and pause/resume while its route version and public origin stay unchanged; editing directions requires a new QR after testing and activation. **Temporary guest session** remains a short-lived direct test link. The local pilot's shared five-issuance-per-minute limit also applies to scans. A new Cloudflare Quick Tunnel hostname requires a new QR. Do not publish the merchant dev server or use this local issuer as production authentication.
 
+**Print entrance sign** opens a dedicated sign with the current entrance QR, route version and staff fallback text. **Print sign** opens the browser print dialog; print styling hides controls and uses an A4 layout. Opening or printing a sign does not consume guest-session issuance. A paused or inactive route cannot generate a sign. Reprint after changing the route version or tunnel hostname.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash
