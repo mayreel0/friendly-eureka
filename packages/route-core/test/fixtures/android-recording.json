@@ -1,0 +1,18 @@
+{
+  "recordedAt": "2026-09-17T00:00:00Z",
+  "heading": { "x": 0, "y": 0, "z": -1 },
+  "samples": [
+    { "elapsedMs": 0, "position": { "x": 0, "y": 0, "z": 0 } },
+    { "elapsedMs": 500, "position": { "x": 1, "y": 0, "z": 0 } },
+    { "elapsedMs": 1000, "position": { "x": 1, "y": 0, "z": 1 } }
+  ],
+  "landmarks": [
+    { "kind": "entrance", "label": "Entrance", "instruction": "", "position": { "x": 0, "y": 0, "z": 0 }, "sampleIndex": 0, "distanceMeters": 0 },
+    { "kind": "landmark", "label": "Reception", "instruction": "Walk to reception.", "position": { "x": 1, "y": 0, "z": 0 }, "sampleIndex": 1, "distanceMeters": 1 },
+    { "kind": "destination", "label": "Restroom", "instruction": "Turn left to the restroom.", "position": { "x": 1, "y": 0, "z": 1 }, "sampleIndex": 2, "distanceMeters": 1 }
+  ],
+  "distanceMeters": 2,
+  "schemaVersion": 1,
+  "source": "android-arcore",
+  "coordinateFrame": "arcore-session-relative"
+}

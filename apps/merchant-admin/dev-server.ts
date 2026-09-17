@@ -8,6 +8,8 @@ import { build } from 'esbuild';
 import { createPilotStateStore, PilotStateConflictError, PilotStateSaveError } from './pilot-state-store.ts';
 import { createPilotGuestApi } from './pilot-guest-api.ts';
 import { renderEntranceSign } from './entrance-sign.ts';
+import { InvalidRecordingError, maxRecordingBytes, parseRecording } from '../../packages/route-core/src/recording.ts';
+import { parseImportedRecording, recordingToDraft, type ImportedRecording } from './src/recording-import.ts';
 import { hasCurrentPassingTest, InvalidRouteTestError, parseRouteTestInput, parseSavedRouteTest, type RouteTestResult } from './src/route-test-result.ts';
 import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
@@ -24,6 +26,7 @@ const currentFile = fileURLToPath(import.meta.url);
 const appRoot = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = resolve(appRoot, '../..');
 class RouteActivationError extends Error {}
+class RequestTooLargeError extends Error {}
 export const defaultPilotStateFile = join(repoRoot, '.lechigo', 'pilot-state.json');
 
 const contentTypes = new Map([
@@ -138,6 +141,29 @@ export function createMerchantAdminDevServer(
           status: 405,
           error: 'method-not-allowed',
         });
+        return;
+      }
+
+      if (requestUrl.pathname === '/api/dev/pilot-route-import') {
+        if (request.method !== 'POST') {
+          writeJson(response, 405, { ok: false, error: 'method-not-allowed' });
+          return;
+        }
+        if (!expectedRevision) {
+          writeJson(response, 428, { ok: false, error: 'pilot-revision-required' });
+          return;
+        }
+        const input = parseRecording(await readJson(request, maxRecordingBytes));
+        pilotState = await stateStore.update((previous) => {
+          const routeVersion = (previous.recording.routeVersion ?? 1) + 1;
+          return { ...previous, recording: {
+            stage: 'recorded', routeId: 'pilot-restroom-route', routeVersion,
+            testResult: previous.recording.testResult,
+            ...recordingToDraft(input, routeVersion),
+          } };
+        }, expectedRevision);
+        syncRecording(pilotState.recording);
+        writeJson(response, 200, { ok: true, ...pilotState, revision: stateStore.revision() });
         return;
       }
 
@@ -259,6 +285,11 @@ export function createMerchantAdminDevServer(
       });
       response.end(body);
     } catch (error) {
+      if (error instanceof InvalidRecordingError || error instanceof RequestTooLargeError || error instanceof SyntaxError) {
+        writeJson(response, error instanceof RequestTooLargeError ? 413 : error instanceof SyntaxError ? 400 : 422,
+          { ok: false, error: error instanceof RequestTooLargeError ? 'recording-too-large' : 'invalid-recording' });
+        return;
+      }
       if (error instanceof RouteActivationError) {
         writeJson(response, 422, { ok: false, error: 'current-passing-test-required' });
         return;
@@ -305,6 +336,7 @@ type PilotReadinessState = {
 };
 
 type PilotRouteRecordingState = {
+  importedRecording?: ImportedRecording;
   entryKey?: string;
   testResult?: RouteTestResult;
   stage: PilotRouteRecordingScreenStage;
@@ -319,10 +351,12 @@ function applyDirectionChange(previous: PilotRouteRecordingState, next: PilotRou
   if (samePilotDirections(previous.directions, next.directions)) {
     if (['tested', 'active', 'launch-ready'].includes(next.stage) && !hasCurrentPassingTest(previous)) throw new RouteActivationError();
     return { ...next, routeVersion: previous.routeVersion, testResult: previous.testResult,
+      importedRecording: previous.importedRecording,
       entryKey: previous.entryKey ?? (['active', 'launch-ready'].includes(next.stage) ? randomUUID() : undefined),
     };
   }
   return { ...next, stage: 'recorded', routeId: 'pilot-restroom-route',
+    importedRecording: previous.importedRecording,
     routeVersion: (previous.routeVersion ?? 1) + 1, testResult: previous.testResult, entryKey: undefined, launchUrl: undefined, expiresAt: undefined };
 }
 
@@ -463,6 +497,7 @@ function parsePilotRouteRecordingUpdate(value: unknown): PilotRouteRecordingStat
 
   return {
     stage,
+    importedRecording: parseImportedRecording(value.importedRecording),
     routeId: typeof value.routeId === 'string' ? value.routeId : undefined,
     launchUrl: typeof value.launchUrl === 'string' ? value.launchUrl : undefined,
     expiresAt: typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt)) ? value.expiresAt : undefined,
@@ -543,11 +578,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-async function readJson(request: IncomingMessage) {
+async function readJson(request: IncomingMessage, maxBytes = Infinity) {
   const chunks: Buffer[] = [];
+  let size = 0;
 
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  for await (const chunk of request.iterator({ destroyOnReturn: false })) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > maxBytes) {
+      request.resume();
+      throw new RequestTooLargeError();
+    }
+    chunks.push(buffer);
   }
 
   const body = Buffer.concat(chunks).toString('utf8');
