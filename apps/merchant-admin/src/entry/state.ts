@@ -212,6 +212,7 @@ export function applyLocalPilotRouteRecordingAction(
     | 'record-follow-up'
     | 'complete-follow-up'
     | 'record-qr-placement-evidence'
+    | 'save-directions'
   >,
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
@@ -380,6 +381,8 @@ export function toPilotRouteRecordingApiState(
     routeId: state.routeId,
     launchUrl: state.launchUrl,
     expiresAt: state.expiresAt,
+    directions: state.directions,
+    routeVersion: state.routeVersion,
   };
 }
 

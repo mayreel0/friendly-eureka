@@ -1,4 +1,5 @@
 import { canActivateRoute, type Route } from '../../../packages/route-core/src/index.ts';
+import { defaultPilotDirections, type PilotDirections } from './pilot-directions.ts';
 import {
   activateRoute,
   createQrSession,
@@ -37,6 +38,8 @@ export type PilotRouteRecordingUiState = {
   token?: string;
   expiresAt?: string;
   launchUrl?: string;
+  directions?: PilotDirections;
+  routeVersion?: number;
 };
 
 export function merchantAdminSurface() {
@@ -100,6 +103,8 @@ export function createPilotRouteRecordingUiState(
   input: {
     merchant?: MerchantPrincipal;
     clientKey?: string;
+    directions?: PilotDirections;
+    routeVersion?: number;
   } = {},
 ): PilotRouteRecordingUiState {
   return {
@@ -107,6 +112,8 @@ export function createPilotRouteRecordingUiState(
     merchant: input.merchant ?? pilotMerchant,
     clientKey: input.clientKey ?? 'local-dev-browser',
     stage: 'empty',
+    directions: input.directions,
+    routeVersion: input.routeVersion,
   };
 }
 
@@ -179,7 +186,7 @@ function recordPilotRouteDraft(
       storeId: pilotStoreId,
       route: {
         id: pilotRouteId,
-        version: 1,
+        version: state.routeVersion ?? 1,
         recordedAt: '2026-09-01T09:00:00.000Z',
         anchors: [
           {
@@ -209,15 +216,13 @@ function recordPilotRouteDraft(
             id: 'segment-1',
             fromAnchorId: 'entrance',
             toAnchorId: 'hallway',
-            instruction: 'Walk toward the main hallway.',
-            distanceMeters: 4,
+            ...(state.directions ?? defaultPilotDirections)[0],
           },
           {
             id: 'segment-2',
             fromAnchorId: 'hallway',
             toAnchorId: 'restroom',
-            instruction: 'Turn right at Main Hallway and continue to the restroom.',
-            distanceMeters: 4.2,
+            ...(state.directions ?? defaultPilotDirections)[1],
           },
         ],
       },

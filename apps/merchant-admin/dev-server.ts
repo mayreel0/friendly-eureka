@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { createPilotStateStore, PilotStateConflictError, PilotStateSaveError } from './pilot-state-store.ts';
 import { createPilotGuestApi } from './pilot-guest-api.ts';
+import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
 import type {
   PilotFollowUpAction,
@@ -80,7 +81,9 @@ export function createMerchantAdminDevServer(
 
         if (request.method === 'POST') {
           const update = parsePilotStateUpdate(await readJson(request));
-          pilotState = await stateStore.update(() => update, expectedRevision);
+          pilotState = await stateStore.update((previous) => ({
+            ...update, recording: applyDirectionChange(previous.recording, update.recording),
+          }), expectedRevision);
           guestApi.setRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
@@ -112,7 +115,9 @@ export function createMerchantAdminDevServer(
 
         if (request.method === 'POST') {
           const recording = parsePilotRouteRecordingUpdate(await readJson(request));
-          pilotState = await stateStore.update((previous) => ({ ...previous, recording }), expectedRevision);
+          pilotState = await stateStore.update((previous) => ({
+            ...previous, recording: applyDirectionChange(previous.recording, recording),
+          }), expectedRevision);
           guestApi.setRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
@@ -187,6 +192,10 @@ export function createMerchantAdminDevServer(
       });
       response.end(body);
     } catch (error) {
+      if (error instanceof InvalidPilotDirectionsError) {
+        writeJson(response, 400, { ok: false, error: 'invalid-pilot-directions' });
+        return;
+      }
       if (error instanceof PilotStateConflictError) {
         writeJson(response, 409, { ok: false, error: 'pilot-state-conflict' });
         return;
@@ -225,7 +234,17 @@ type PilotRouteRecordingState = {
   routeId?: string;
   launchUrl?: string;
   expiresAt?: string;
+  directions?: PilotDirections;
+  routeVersion?: number;
 };
+
+function applyDirectionChange(previous: PilotRouteRecordingState, next: PilotRouteRecordingState): PilotRouteRecordingState {
+  if (samePilotDirections(previous.directions, next.directions)) {
+    return { ...next, routeVersion: previous.routeVersion };
+  }
+  return { ...next, stage: 'recorded', routeId: 'pilot-restroom-route',
+    routeVersion: (previous.routeVersion ?? 1) + 1, launchUrl: undefined, expiresAt: undefined };
+}
 
 type PilotState = {
   recording: PilotRouteRecordingState;
@@ -363,6 +382,8 @@ function parsePilotRouteRecordingUpdate(value: unknown): PilotRouteRecordingStat
     routeId: typeof value.routeId === 'string' ? value.routeId : undefined,
     launchUrl: typeof value.launchUrl === 'string' ? value.launchUrl : undefined,
     expiresAt: typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt)) ? value.expiresAt : undefined,
+    directions: value.directions === undefined ? undefined : parsePilotDirections(value.directions),
+    routeVersion: typeof value.routeVersion === 'number' && Number.isSafeInteger(value.routeVersion) && value.routeVersion > 0 ? value.routeVersion : undefined,
   };
 }
 

@@ -136,3 +136,27 @@ test('paused publishing stays unavailable after restart while retaining readines
     assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 409);
   } finally { await running.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('edited directions survive restart, require reactivation, and reject invalid changes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lechigo-directions-'));
+  const file = join(directory, 'pilot.json');
+  let running = await start(file);
+  const directions = [{ instruction: 'Pass reception.', distanceMeters: 12.5 }, { instruction: 'Turn left.', distanceMeters: 3 }];
+  try {
+    const post = (body: unknown) => fetch(`${running.origin}/api/dev/pilot-route-recording`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const saved = await post({ stage: 'active', routeId: 'pilot-restroom-route', directions });
+    assert.equal(saved.status, 200);
+    assert.equal((await saved.json()).stage, 'recorded');
+    const invalid = await post({ stage: 'active', directions: [{ instruction: '', distanceMeters: -1 }] });
+    assert.equal(invalid.status, 400);
+    await running.close();
+    running = await start(file);
+    const state = await (await fetch(`${running.origin}/api/dev/pilot-state`)).json();
+    assert.deepEqual(state.recording.directions, directions);
+    assert.equal(state.recording.routeVersion, 2);
+    assert.equal(state.recording.stage, 'recorded');
+    assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 409);
+  } finally { await running.close(); await rm(directory, { recursive: true, force: true }); }
+});
