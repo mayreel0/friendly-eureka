@@ -15,6 +15,8 @@ export function renderPilotRouteRecordingScreen(
     busy: boolean;
     error: string;
     previewUrl?: string;
+    testNote: string;
+    onTestNote: (note: string) => void;
     onReload?: () => void;
     draft: QrPlacementDraft;
     directionsDraft: DirectionsDraft;
@@ -57,6 +59,14 @@ export function renderPilotRouteRecordingScreen(
           </div>
           <div data-dashboard-panel="actions">
             <h2>Pilot controls</h2>
+            <label>Route test note<textarea maxlength="500" .value=${options.testNote}
+              @input=${(event: Event) => options.onTestNote((event.target as HTMLTextAreaElement).value)}></textarea></label>
+            ${state.testResult ? html`<p data-route-test-result>
+              Manual walkthrough: ${state.testResult.result} (route v${state.testResult.routeVersion})
+              ${state.testResult.routeVersion !== (state.routeVersion ?? 1) ? '- previous version; retest required' : ''}
+              <time datetime=${state.testResult.recordedAt}>${new Date(state.testResult.recordedAt).toLocaleString()}</time>.
+              ${state.testResult.note}
+            </p>` : nothing}
             <div data-actions="pilot-route-recording">${view.actions.map((action) => actionButton(action.id))}</div>
           </div>
           <div data-dashboard-panel="readiness">

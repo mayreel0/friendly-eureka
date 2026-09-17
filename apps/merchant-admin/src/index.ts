@@ -40,6 +40,7 @@ export type PilotRouteRecordingUiState = {
   launchUrl?: string;
   directions?: PilotDirections;
   routeVersion?: number;
+  testRecordedAt?: string;
 };
 
 export function merchantAdminSurface() {
@@ -105,6 +106,7 @@ export function createPilotRouteRecordingUiState(
     clientKey?: string;
     directions?: PilotDirections;
     routeVersion?: number;
+    testRecordedAt?: string;
   } = {},
 ): PilotRouteRecordingUiState {
   return {
@@ -114,6 +116,7 @@ export function createPilotRouteRecordingUiState(
     stage: 'empty',
     directions: input.directions,
     routeVersion: input.routeVersion,
+    testRecordedAt: input.testRecordedAt,
   };
 }
 
@@ -246,7 +249,7 @@ function markPilotRouteTestPassed(
       merchant: state.merchant,
       storeId: pilotStoreId,
       routeId: pilotRouteId,
-      testedAt: '2026-09-01T09:10:00.000Z',
+      testedAt: state.testRecordedAt ?? '2026-09-01T09:10:00.000Z',
       result: 'pass',
     }),
   );

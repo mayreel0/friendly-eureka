@@ -1,4 +1,5 @@
 import type { PilotDirections } from '../pilot-directions.ts';
+import type { RouteTestResult } from '../route-test-result.ts';
 
 export type PilotRouteRecordingScreenStage =
   | 'empty'
@@ -11,6 +12,7 @@ export type PilotRouteRecordingScreenStage =
 export type PilotRouteRecordingScreenActionId =
   | 'record-route'
   | 'mark-test-passed'
+  | 'mark-test-failed'
   | 'activate-route'
   | 'pause-route'
   | 'save-directions'
@@ -23,6 +25,7 @@ export type PilotRouteRecordingScreenActionId =
   | 'record-qr-placement-evidence';
 
 export type PilotRouteRecordingScreenState = {
+  testResult?: RouteTestResult;
   directions?: PilotDirections;
   routeVersion?: number;
   stage: PilotRouteRecordingScreenStage;
@@ -96,6 +99,7 @@ export type PilotReadinessApiState = {
 };
 
 export type PilotRouteRecordingApiState = {
+  testResult?: RouteTestResult;
   directions?: PilotDirections;
   routeVersion?: number;
   stage: PilotRouteRecordingScreenStage;

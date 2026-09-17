@@ -3,6 +3,7 @@ import { type AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
 
 import { createMerchantAdminDevServer, resolveGuestOrigin } from '../dev-server.ts';
+import { prepareTestedRoute } from './pilot-fixture.ts';
 
 describe('merchant admin dev server', () => {
   it('accepts a public guest origin and rejects unsafe or ambiguous values', () => {
@@ -129,6 +130,7 @@ describe('merchant admin dev server', () => {
       assert.equal(initialRecording.body.ok, true);
       assert.equal(initialRecording.body.stage, 'empty');
       assert.equal(initialRecording.body.routeId, undefined);
+      await prepareTestedRoute(baseUrl);
 
       const savedRecording = await fetch(
         `${baseUrl}/api/dev/pilot-route-recording`,
@@ -250,10 +252,8 @@ describe('merchant admin dev server', () => {
         updatedPilotState.body.nextTarget?.label,
         'Complete pilot readiness',
       );
-      assert.deepEqual(updatedPilotState.body.recording, {
-        stage: 'active',
-        routeId: 'pilot-restroom-route',
-      });
+      assert.equal(updatedPilotState.body.recording?.stage, 'active');
+      assert.equal(updatedPilotState.body.recording?.routeId, 'pilot-restroom-route');
       assert.equal(updatedPilotState.body.readiness?.hasQrPlacement, false);
       assert.equal(updatedPilotState.body.readiness?.hasStaffFallbackNote, true);
       assert.equal(

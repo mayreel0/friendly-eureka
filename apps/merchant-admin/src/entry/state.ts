@@ -120,6 +120,11 @@ export function createPilotRouteRecordingView(
         enabled: state.stage === 'recorded',
       },
       {
+        id: 'mark-test-failed',
+        label: 'Mark test failed',
+        enabled: state.stage !== 'empty',
+      },
+      {
         id: 'activate-route',
         label: state.stage === 'paused' ? 'Resume guest access' : 'Activate route',
         enabled: state.stage === 'tested' || state.stage === 'paused',
@@ -234,6 +239,9 @@ export function applyLocalPilotRouteRecordingAction(
     };
   }
 
+  if (actionId === 'mark-test-failed') {
+    return { ...state, stage: 'recorded', launchUrl: undefined, expiresAt: undefined };
+  }
   if (actionId === 'mark-test-passed') {
     return { ...state, stage: 'tested' };
   }
@@ -389,6 +397,7 @@ export function toPilotRouteRecordingApiState(
     expiresAt: state.expiresAt,
     directions: state.directions,
     routeVersion: state.routeVersion,
+    testResult: state.testResult,
   };
 }
 

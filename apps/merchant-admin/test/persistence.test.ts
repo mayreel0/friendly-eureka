@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { createMerchantAdminDevServer } from '../dev-server.ts';
+import { prepareTestedRoute } from './pilot-fixture.ts';
 
 async function start(stateFile: string) {
   const server = createMerchantAdminDevServer({ stateFile });
@@ -26,6 +27,7 @@ test('pilot state survives server restart without persisting guest session URLs'
   const file = join(directory, 'pilot.json');
   let running = await start(file);
   try {
+    await prepareTestedRoute(running.origin);
     const response = await fetch(`${running.origin}/api/dev/pilot-state`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         recording, readiness, followUps: [{ id: 'follow-up-1', targetId: 'run-guest-pilot-qa',
@@ -46,6 +48,7 @@ test('pilot state survives server restart without persisting guest session URLs'
     assert.equal(restored.recording.stage, 'active');
     assert.equal(restored.recording.launchUrl, undefined);
     assert.equal(restored.recording.expiresAt, undefined);
+    assert.deepEqual(restored.recording.testResult, live.recording.testResult);
     assert.deepEqual(restored.readiness, readiness);
     assert.equal(restored.followUps[0].id, 'follow-up-1');
     assert.equal(restored.nextTarget.id, 'generate-guest-url');
@@ -67,6 +70,7 @@ test('concurrent partial updates persist both recording and readiness', async ()
   const file = join(directory, 'pilot.json');
   let running = await start(file);
   try {
+    await prepareTestedRoute(running.origin);
     const post = (path: string, body: unknown) => fetch(`${running.origin}${path}`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     });
@@ -123,6 +127,7 @@ test('paused publishing stays unavailable after restart while retaining readines
   const file = join(directory, 'pilot.json');
   let running = await start(file);
   try {
+    await prepareTestedRoute(running.origin);
     const saved = await fetch(`${running.origin}/api/dev/pilot-state`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ recording: { stage: 'paused', routeId: 'pilot-restroom-route' }, readiness, followUps: [] }),
@@ -159,4 +164,21 @@ test('edited directions survive restart, require reactivation, and reject invali
     assert.equal(state.recording.stage, 'recorded');
     assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 409);
   } finally { await running.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('legacy active state without a versioned test restores as needing a test', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lechigo-legacy-test-'));
+  const file = join(directory, 'pilot.json');
+  try {
+    await writeFile(file, JSON.stringify({ version: 1, state: {
+      recording: { stage: 'active', routeId: 'pilot-restroom-route' }, readiness, followUps: [],
+    } }));
+    const running = await start(file);
+    try {
+      const state = await (await fetch(`${running.origin}/api/dev/pilot-state`)).json();
+      assert.equal(state.recording.stage, 'recorded');
+      assert.deepEqual(state.readiness, readiness);
+      assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 409);
+    } finally { await running.close(); }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
