@@ -21,6 +21,8 @@ export function renderPilotRouteRecordingScreen(
     draft: QrPlacementDraft;
     directionsDraft: DirectionsDraft;
     onDirectionsDraft: (index: number, field: 'instruction' | 'distanceMeters', value: string) => void;
+    onAddDirection?: () => void;
+    onRemoveDirection?: (index: number) => void;
     onDraft: (field: keyof QrPlacementDraft, value: string) => void;
     onAction: (id: PilotRouteRecordingScreenActionId, followUpId?: string) => void;
   },
@@ -79,7 +81,8 @@ export function renderPilotRouteRecordingScreen(
               </li>`)}</ol>
           </div>
           ${renderDirectionsEditor({ draft: options.directionsDraft, disabled: options.busy || state.stage === 'empty',
-            onChange: options.onDirectionsDraft, onSave: () => options.onAction('save-directions') })}
+            onChange: options.onDirectionsDraft, onAdd: options.onAddDirection, onRemove: options.onRemoveDirection,
+            onSave: () => options.onAction('save-directions') })}
           <div data-dashboard-panel="qr-placement-evidence">
             <h2>QR placement evidence</h2>
             <label>Location<input data-qr-placement-location .value=${options.draft.location}

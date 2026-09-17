@@ -179,6 +179,15 @@ export function renderPilotRouteRecordingUi(state: PilotRouteRecordingUiState) {
 function recordPilotRouteDraft(
   state: PilotRouteRecordingUiState,
 ): PilotRouteRecordingUiState {
+  const directions = state.directions ?? defaultPilotDirections;
+  // These are simulated anchors for manual guidance, not recorded AR coordinates.
+  const anchors: Route['anchors'] = Array.from({ length: directions.length + 1 }, (_, index) => ({
+    id: index === 0 ? 'entrance' : index === directions.length ? 'restroom' : directions.length === 2 ? 'hallway' : `landmark-${index}`,
+    label: index === 0 ? 'Entrance' : index === directions.length ? 'Restroom' : directions.length === 2 ? 'Main Hallway' : `Landmark ${index}`,
+    type: index === 0 ? 'start' : index === directions.length ? 'destination' : 'landmark',
+    floor: 1,
+    position: { x: index * 4, y: 0, z: index === 0 ? 0 : 1 },
+  }));
   const store = registerStore(state.context, {
     ...pilotStore,
     merchantId: state.merchant.id,
@@ -191,43 +200,13 @@ function recordPilotRouteDraft(
         id: pilotRouteId,
         version: state.routeVersion ?? 1,
         recordedAt: '2026-09-01T09:00:00.000Z',
-        anchors: [
-          {
-            id: 'entrance',
-            label: 'Entrance',
-            floor: 1,
-            position: { x: 0, y: 0, z: 0 },
-            type: 'start',
-          },
-          {
-            id: 'hallway',
-            label: 'Main Hallway',
-            floor: 1,
-            position: { x: 4, y: 0, z: 1 },
-            type: 'landmark',
-          },
-          {
-            id: 'restroom',
-            label: 'Restroom',
-            floor: 1,
-            position: { x: 8, y: 0, z: 1 },
-            type: 'destination',
-          },
-        ],
-        segments: [
-          {
-            id: 'segment-1',
-            fromAnchorId: 'entrance',
-            toAnchorId: 'hallway',
-            ...(state.directions ?? defaultPilotDirections)[0],
-          },
-          {
-            id: 'segment-2',
-            fromAnchorId: 'hallway',
-            toAnchorId: 'restroom',
-            ...(state.directions ?? defaultPilotDirections)[1],
-          },
-        ],
+        anchors,
+        segments: directions.map((step, index) => ({
+          id: `segment-${index + 1}`,
+          fromAnchorId: anchors[index].id,
+          toAnchorId: anchors[index + 1].id,
+          ...step,
+        })),
       },
     }),
   );
