@@ -180,13 +180,15 @@ function recordPilotRouteDraft(
   state: PilotRouteRecordingUiState,
 ): PilotRouteRecordingUiState {
   const directions = state.directions ?? defaultPilotDirections;
+  const floors = [directions.find((step) => step.floorTransition)?.floorTransition?.fromFloor ?? 1];
+  for (const step of directions) floors.push(step.floorTransition?.toFloor ?? floors[floors.length - 1]);
   // These are simulated anchors for manual guidance, not recorded AR coordinates.
   const anchors: Route['anchors'] = Array.from({ length: directions.length + 1 }, (_, index) => ({
     id: index === 0 ? 'entrance' : index === directions.length ? 'restroom' : directions.length === 2 ? 'hallway' : `landmark-${index}`,
     label: index === 0 ? 'Entrance' : directions[index - 1].landmarkLabel ??
       (index === directions.length ? 'Restroom' : directions.length === 2 ? 'Main Hallway' : `Landmark ${index}`),
     type: index === 0 ? 'start' : index === directions.length ? 'destination' : 'landmark',
-    floor: 1,
+    floor: floors[index],
     position: { x: index * 4, y: 0, z: index === 0 ? 0 : 1 },
   }));
   const store = registerStore(state.context, {
@@ -208,6 +210,7 @@ function recordPilotRouteDraft(
           toAnchorId: anchors[index + 1].id,
           instruction: step.instruction,
           distanceMeters: step.distanceMeters,
+          ...(step.floorTransition ? { floorTransition: step.floorTransition } : {}),
         })),
       },
     }),

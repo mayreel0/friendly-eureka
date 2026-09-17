@@ -103,6 +103,7 @@ export class GuestEntryElement extends LitElement {
         <details><summary>All directions</summary><ol>${steps.map((item, index) => html`
           <li aria-current=${index === this.stepIndex ? 'step' : 'false'}>
             ${item.instruction} ${item.distanceMeters} meters. ${item.toLabel}.
+            ${item.floorTransition ? html`Floor ${item.floorTransition.fromFloor} to ${item.floorTransition.toFloor} (${item.floorTransition.type}).` : nothing}
           </li>`)}</ol></details>
         ${this.config.session?.canViewPassword === false ? html`<footer>For the restroom door code, ask staff.</footer>` : nothing}
       </main>`;

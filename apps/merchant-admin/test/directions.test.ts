@@ -2,6 +2,21 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parsePilotDirections, samePilotDirections } from '../src/pilot-directions.ts';
 
+test('floor transitions preserve type and floors and reject disconnected routes', () => {
+  const step = { instruction: 'Change floors.', distanceMeters: 5 };
+  const stairs = { ...step, floorTransition: { type: 'stairs' as const, fromFloor: -1, toFloor: 1 } };
+  const elevator = { ...step, floorTransition: { type: 'elevator' as const, fromFloor: 1, toFloor: 3 } };
+  assert.deepEqual(parsePilotDirections([stairs, step, elevator]), [stairs, step, elevator]);
+  assert.equal(samePilotDirections([step], [stairs]), false);
+  assert.equal(samePilotDirections([stairs], [{ ...stairs, floorTransition: { ...stairs.floorTransition, type: 'ramp' } }]), false);
+  for (const floorTransition of [null, {}, { type: 'teleport', fromFloor: 1, toFloor: 2 },
+    { type: 'stairs', fromFloor: 1, toFloor: 1 }, { type: 'stairs', fromFloor: 1.5, toFloor: 2 },
+    { type: 'stairs', fromFloor: -11, toFloor: 2 }, { type: 'stairs', fromFloor: 1, toFloor: 201 }]) {
+    assert.throws(() => parsePilotDirections([{ ...step, floorTransition }]));
+  }
+  assert.throws(() => parsePilotDirections([stairs, { ...elevator, floorTransition: { ...elevator.floorTransition, fromFloor: 2 } }]));
+});
+
 test('landmark names are optional, bounded, normalized and affect route identity', () => {
   const step = { instruction: 'Turn left.', distanceMeters: 3 };
   assert.deepEqual(parsePilotDirections([{ ...step, landmarkLabel: '  Reception  ' }]), [{ ...step, landmarkLabel: 'Reception' }]);
