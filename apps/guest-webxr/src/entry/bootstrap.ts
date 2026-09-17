@@ -23,7 +23,7 @@ export type GuestBrowserDocument = GuestEntryElementEnvironment['document'] & {
 };
 
 export type GuestBrowserRouteLoadResult =
-  | { ok: true; route: SerializedRoute; session?: GuestRouteSessionSummary }
+  | { ok: true; route: SerializedRoute; session?: GuestRouteSessionSummary; preview?: boolean }
   | { ok: false; status?: number; error: string };
 
 export type GuestBrowserRouteLoader = (input: {
@@ -119,7 +119,7 @@ export function bootstrapGuestEntry(
       const detectedConfig = { ...pendingConfig, arSupport };
       host.configure(
         result.ok
-          ? { ...detectedConfig, route: result.route, session: result.session }
+          ? { ...detectedConfig, route: result.route, session: result.session, preview: result.preview === true }
           : { ...detectedConfig, routeLoadError: result.error, routeLoadStatus: result.status },
       );
       return result;

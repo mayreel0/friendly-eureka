@@ -79,6 +79,21 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       assert.equal((await fetch(`${serverBaseUrl(guestServer)}/api/guest/routes?token=${encodeURIComponent(resumedToken)}`)).status, 403);
       await page.reload();
       await expect(page.getByRole('textbox', { name: 'Step 1 instruction', exact: true })).toHaveValue('Walk past the reception desk.');
+      await page.route('**/api/dev/pilot-route-preview', (route) => route.fulfill({ status: 503, json: { error: 'unavailable' } }));
+      await page.getByRole('button', { name: 'Preview route', exact: true }).click();
+      await expect(page.getByRole('alert')).toContainText('Could not create a route preview');
+      await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'recorded');
+      await page.unroute('**/api/dev/pilot-route-preview');
+      await page.getByRole('button', { name: 'Preview route', exact: true }).click();
+      const openedPreview = page.waitForEvent('popup');
+      await page.getByRole('link', { name: 'Open route preview', exact: true }).click();
+      const preview = await openedPreview;
+      preview.on('pageerror', (error) => errors.push(error.message));
+      await expect(preview.locator('[data-route-preview]')).toContainText('not a published guest link');
+      await expect(preview.locator('[data-current-instruction]')).toHaveText('Walk past the reception desk.');
+      assert.equal((await fetch(`${serverBaseUrl(guestServer)}/api/dev/guest-session`)).status, 409);
+      assert.equal((await fetch(`${serverBaseUrl(guestServer)}/api/dev/pilot-route-preview`)).status, 404);
+      await preview.close();
       for (const action of ['mark-test-passed', 'activate-route', 'generate-guest-url']) {
         await page.locator(`[data-action-id="${action}"]`).first().click();
       }
@@ -91,6 +106,7 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       assert.equal(editedRoute.route.totalDistanceMeters, 16.7);
       await page.goto(editedUrl);
       await expect(page.locator('[data-current-instruction]')).toHaveText('Walk past the reception desk.');
+      await expect(page.locator('[data-route-preview]')).toHaveCount(0);
       for (const width of [390, 1280]) {
         await page.setViewportSize({ width, height: 844 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

@@ -28,6 +28,7 @@ export type GuestEntryElementConfig = {
   arSupport: ArSupport;
   routeLoadError?: string;
   routeLoadStatus?: number;
+  preview?: boolean;
   currentAnchorId: string;
   trackingConfidence: TrackingConfidence;
   driftMeters: number;
