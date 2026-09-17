@@ -24,14 +24,17 @@ test('merchant adds and removes steps and guests follow the saved order', async 
     await page.locator('[data-action-id="record-route"]').first().click();
     await page.getByRole('button', { name: 'Add step', exact: true }).click();
     const instructions = ['Pass reception.', 'Turn left at the lift.', 'Open the restroom door.'];
+    const landmarks = ['Reception', 'Lift lobby', 'Accessible restroom'];
     for (let index = 0; index < 3; index++) {
       await page.getByLabel(`Step ${index + 1} instruction`, { exact: true }).fill(instructions[index]);
       await page.getByLabel(`Step ${index + 1} distance (meters)`, { exact: true }).fill(String(index + 2));
+      await page.getByLabel(`Step ${index + 1} landmark name`, { exact: true }).fill(landmarks[index]);
     }
     await page.getByRole('button', { name: 'Save route directions', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save route directions', exact: true })).toBeEnabled();
     await page.reload();
     await expect(page.getByLabel('Step 3 instruction', { exact: true })).toHaveValue(instructions[2]);
+    await expect(page.getByLabel('Step 3 landmark name', { exact: true })).toHaveValue(landmarks[2]);
     for (const width of [390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -46,10 +49,12 @@ test('merchant adds and removes steps and guests follow the saved order', async 
     await visitor.goto(`${guestOrigin}${oldEntry.pathname}`);
     for (let index = 0; index < 3; index++) {
       await expect(visitor.locator('[data-current-instruction]')).toHaveText(instructions[index]);
+      await expect(visitor.getByRole('heading', { level: 1 })).toHaveText(landmarks[index]);
       await expect(visitor.locator('[data-progress]')).toHaveText(`Step ${index + 1} of 3`);
       await visitor.getByRole('button', { name: index === 2 ? 'I have arrived' : 'Reached this landmark', exact: true }).click();
     }
     await expect(visitor.locator('[data-screen="arrived"]')).toBeVisible();
+    await expect(visitor.locator('[data-screen="arrived"]')).toContainText('Accessible restroom');
     await page.getByRole('button', { name: 'Remove step 2', exact: true }).click();
     await expect(page.getByLabel('Step 2 instruction', { exact: true })).toHaveValue(instructions[2]);
     await page.getByRole('button', { name: 'Remove step 2', exact: true }).click();
@@ -71,6 +76,11 @@ test('merchant adds and removes steps and guests follow the saved order', async 
     await expect(visitor.locator('[data-current-instruction]')).toHaveText(instructions[0]);
     await visitor.getByRole('button', { name: 'I have arrived', exact: true }).click();
     await expect(visitor.locator('[data-screen="arrived"]')).toBeVisible();
+    await page.getByLabel('Step 1 landmark name', { exact: true }).fill('Restroom entrance');
+    await page.getByRole('button', { name: 'Save route directions', exact: true }).click();
+    await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'recorded');
+    await expect(page.locator('[data-route-test-result]')).toContainText('retest required');
+    assert.equal((await fetch(`${guestOrigin}${singleEntry.pathname}`)).status, 404);
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

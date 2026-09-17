@@ -20,7 +20,7 @@ export function renderPilotRouteRecordingScreen(
     onReload?: () => void;
     draft: QrPlacementDraft;
     directionsDraft: DirectionsDraft;
-    onDirectionsDraft: (index: number, field: 'instruction' | 'distanceMeters', value: string) => void;
+    onDirectionsDraft: (index: number, field: keyof DirectionsDraft[number], value: string) => void;
     onAddDirection?: () => void;
     onRemoveDirection?: (index: number) => void;
     onDraft: (field: keyof QrPlacementDraft, value: string) => void;
