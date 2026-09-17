@@ -4,7 +4,7 @@ import { createPilotGuestApi } from '../pilot-guest-api.ts';
 
 test('only an active saved pilot route can issue or serve guest sessions', () => {
   const api = createPilotGuestApi();
-  for (const stage of ['empty', 'recorded', 'tested'] as const) {
+  for (const stage of ['empty', 'recorded', 'tested', 'paused'] as const) {
     api.setRecording({ stage, routeId: 'pilot-restroom-route' });
     assert.deepEqual(api.issueSession(), { ok: false, status: 409, error: 'pilot-route-not-active' });
     assert.equal(api.fetchRoute('anything').ok, false);

@@ -3,12 +3,14 @@ export type PilotRouteRecordingScreenStage =
   | 'recorded'
   | 'tested'
   | 'active'
+  | 'paused'
   | 'launch-ready';
 
 export type PilotRouteRecordingScreenActionId =
   | 'record-route'
   | 'mark-test-passed'
   | 'activate-route'
+  | 'pause-route'
   | 'mark-qr-placed'
   | 'mark-staff-fallback-ready'
   | 'generate-guest-url'

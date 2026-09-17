@@ -42,6 +42,8 @@ This is a local prototype, not a production publishing API: route geometry is st
 
 The merchant dashboard shows each guest link's expiry time. Use **Refresh guest URL** to issue a new link and downloadable QR without repeating setup. Failed refreshes preserve the displayed link; rate-limited requests can be retried after a minute. Session URLs and expiry metadata are not written to the saved state file.
 
+Use **Pause guest access** to stop new session issuance and route requests. Pausing preserves setup and evidence, clears the dashboard's guest link, and survives restart. **Resume guest access** requires generating a new link; old tokens remain invalid. Directions already loaded on a phone remain in memory for offline use, so pausing is not a remote wipe or an emergency notification system.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

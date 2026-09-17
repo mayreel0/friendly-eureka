@@ -18,6 +18,7 @@ export type PilotRouteRecordingStage =
   | 'recorded'
   | 'tested'
   | 'active'
+  | 'paused'
   | 'launch-ready';
 export type PilotRouteRecordingUiActionId =
   | 'record-route'

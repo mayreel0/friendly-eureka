@@ -117,3 +117,22 @@ test('corrupt saved state is preserved and startup fails visibly', async () => {
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
+
+test('paused publishing stays unavailable after restart while retaining readiness', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lechigo-pause-'));
+  const file = join(directory, 'pilot.json');
+  let running = await start(file);
+  try {
+    const saved = await fetch(`${running.origin}/api/dev/pilot-state`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ recording: { stage: 'paused', routeId: 'pilot-restroom-route' }, readiness, followUps: [] }),
+    });
+    assert.equal(saved.status, 200);
+    await running.close();
+    running = await start(file);
+    const state = await (await fetch(`${running.origin}/api/dev/pilot-state`)).json();
+    assert.equal(state.recording.stage, 'paused');
+    assert.deepEqual(state.readiness, readiness);
+    assert.equal((await fetch(`${running.origin}/api/dev/pilot-route-session`)).status, 409);
+  } finally { await running.close(); await rm(directory, { recursive: true, force: true }); }
+});
