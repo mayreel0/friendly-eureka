@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -19,9 +20,11 @@ describe('guest fallback real browser visual smoke', () => {
   const cleanup: (() => Promise<void>)[] = [];
 
   after(async () => {
+    const errors: unknown[] = [];
     for (const dispose of cleanup.reverse()) {
-      await dispose();
+      try { await dispose(); } catch (error) { errors.push(error); }
     }
+    if (errors.length) throw new AggregateError(errors, 'visual-smoke-cleanup-failed');
   });
 
   it('renders fallback guidance in a headless browser with visible layout', async (t) => {
@@ -54,11 +57,15 @@ describe('guest fallback real browser visual smoke', () => {
     assert.ok(isAddressInfo(address));
 
     const userDataDir = await mkdtemp(join(tmpdir(), 'lechigo-guest-visual-smoke-'));
-    cleanup.push(() => rm(userDataDir, { force: true, recursive: true }));
+    cleanup.push(() => rm(userDataDir, { force: true, recursive: true, maxRetries: 5, retryDelay: 100 }));
 
     const browser = await launchChrome(browserPath, userDataDir);
     cleanup.push(async () => {
+      if (browser.process.exitCode !== null || browser.process.signalCode !== null) return;
+      const closed = once(browser.process, 'close');
+      const forceStop = setTimeout(() => browser.process.kill('SIGKILL'), 2000);
       browser.process.kill();
+      try { await closed; } finally { clearTimeout(forceStop); }
     });
 
     const page = await openPage(
