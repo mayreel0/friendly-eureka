@@ -12,6 +12,7 @@ describe('local merchant admin to guest WebXR launch flow', () => {
   it('connects real administrator actions to guest landmark arrival', async () => {
     const guestServer = createGuestWebxrDevServer({ guestApi: {
       issueSession: () => merchantServer.guestApi.issueSession(),
+      issueEntrySession: (key) => merchantServer.guestApi.issueEntrySession(key),
       fetchRoute: (token) => merchantServer.guestApi.fetchRoute(token),
     } });
     await listen(guestServer);
@@ -31,7 +32,9 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       await expect(page.locator('a[data-launch-url]')).toBeVisible();
       const url = await page.locator('a[data-launch-url]').getAttribute('href');
       assert.ok(url);
-      await page.goto(url);
+      const entryUrl = await page.locator('a[data-entry-url]').getAttribute('href');
+      assert.ok(entryUrl);
+      await page.goto(entryUrl);
       await expect(page.locator('[data-current-instruction]')).toContainText('main hallway');
       await page.getByRole('button', { name: 'Reached this landmark' }).click();
       await page.getByRole('button', { name: 'I have arrived' }).click();
@@ -124,6 +127,7 @@ describe('local merchant admin to guest WebXR launch flow', () => {
   it('generates a guest launch URL whose token loads the seeded route', async () => {
     const guestServer = createGuestWebxrDevServer({ guestApi: {
       issueSession: () => merchantServer.guestApi.issueSession(),
+      issueEntrySession: (key) => merchantServer.guestApi.issueEntrySession(key),
       fetchRoute: (token) => merchantServer.guestApi.fetchRoute(token),
     } });
     await listen(guestServer);

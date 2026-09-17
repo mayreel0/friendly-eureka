@@ -99,7 +99,7 @@ export function registerMerchantAdminElement(
             routeId: 'pilot-restroom-route', stage: 'recorded', launchUrl: undefined, expiresAt: undefined };
         } else if (id === 'generate-guest-url') {
           const session = await generateGuestSession(environment);
-          next = { ...next, stage: 'launch-ready', launchUrl: session.launchUrl, expiresAt: session.expiresAt };
+          next = { ...next, stage: 'launch-ready', launchUrl: session.launchUrl, expiresAt: session.expiresAt, entryUrl: session.entryUrl };
         } else if (id === 'record-follow-up') {
           next = recordPilotFollowUp(next, environment.now);
         } else if (id === 'complete-follow-up') {
@@ -109,8 +109,9 @@ export function registerMerchantAdminElement(
         } else {
           next = applyLocalPilotRouteRecordingAction(next, id, environment.now);
         }
-        this.revision = await savePilotState(environment, next, this.revision);
-        this.state = next;
+        const saved = await savePilotState(environment, next, this.revision);
+        this.revision = saved?.revision;
+        this.state = { ...next, ...saved?.recording };
         this.previewUrl = undefined;
         if (id === 'save-directions') {
           this.directionsDraft = createDirectionsDraft(next.directions);

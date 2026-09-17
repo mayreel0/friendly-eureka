@@ -49,6 +49,7 @@ test('pilot state survives server restart without persisting guest session URLs'
     assert.equal(restored.recording.launchUrl, undefined);
     assert.equal(restored.recording.expiresAt, undefined);
     assert.deepEqual(restored.recording.testResult, live.recording.testResult);
+    assert.equal(restored.recording.entryUrl, live.recording.entryUrl);
     assert.deepEqual(restored.readiness, readiness);
     assert.equal(restored.followUps[0].id, 'follow-up-1');
     assert.equal(restored.nextTarget.id, 'generate-guest-url');
@@ -61,6 +62,7 @@ test('pilot state survives server restart without persisting guest session URLs'
       await expect(page.locator('[data-action-id="generate-guest-url"]').first()).toBeEnabled();
       await expect(page.locator('[data-follow-ups="open"] li')).toHaveCount(1);
       await expect(page.locator('a[data-launch-url]')).toHaveCount(0);
+      await expect(page.getByRole('img', { name: 'Guest route QR code' })).toBeVisible();
     } finally { await browser.close(); }
   } finally { await running.close(); await rm(directory, { recursive: true, force: true }); }
 });

@@ -34,6 +34,7 @@ export function renderPilotRouteRecordingScreen(
       @click=${() => options.onAction(id)}>${action.label}</button>` : nothing;
   };
   const launchUrl = toGuestLaunchUrl(view.launchUrl, options.guestOrigin);
+  const entryUrl = ['active', 'launch-ready'].includes(state.stage) ? toGuestLaunchUrl(state.entryUrl, options.guestOrigin) : undefined;
   const previewUrl = toGuestLaunchUrl(options.previewUrl, options.guestOrigin);
   const evidence = view.qrPlacementEvidence;
   return html`
@@ -94,8 +95,11 @@ export function renderPilotRouteRecordingScreen(
         <div data-dashboard-column="secondary">
           <div data-dashboard-panel="guest-launch">
             <h2>Guest launch</h2>
+            ${entryUrl ? html`<h3>Entrance QR</h3><a data-entry-url href=${entryUrl}>Open entrance link</a>
+              <lechigo-guest-qr .url=${entryUrl}></lechigo-guest-qr>` : nothing}
             ${launchUrl ? html`
-              <lechigo-guest-qr .url=${launchUrl}></lechigo-guest-qr>
+              ${!entryUrl ? html`<lechigo-guest-qr .url=${launchUrl}></lechigo-guest-qr>` : nothing}
+              ${entryUrl ? html`<h3>Temporary guest session</h3>` : nothing}
               <a data-launch-url="guest-webxr" href=${launchUrl}>${launchUrl}</a>
               ${state.expiresAt && Number.isFinite(Date.parse(state.expiresAt)) ? html`
                 <p data-session-expires>Expires <time datetime=${state.expiresAt}>${new Date(state.expiresAt).toLocaleString()}</time></p>
