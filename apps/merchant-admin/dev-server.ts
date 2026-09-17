@@ -241,7 +241,7 @@ function parseSavedPilotState(value: unknown): PilotState {
   if (!isRecord(value) || !isRecord(value.recording) || !isRecord(value.readiness) ||
     !Array.isArray(value.followUps) || !isRecord(value.readiness.qaResults) ||
     typeof value.readiness.hasQrPlacement !== 'boolean' || typeof value.readiness.hasStaffFallbackNote !== 'boolean' ||
-    !['empty', 'recorded', 'tested', 'active', 'launch-ready'].includes(String(value.recording.stage))) {
+    !['empty', 'recorded', 'tested', 'active', 'launch-ready', 'paused'].includes(String(value.recording.stage))) {
     throw new Error('Invalid saved pilot state');
   }
   return toPersistedPilotState(parsePilotStateUpdate(value));
@@ -364,6 +364,7 @@ function parsePilotRouteRecordingStage(
   if (
     value === 'recorded' ||
     value === 'tested' ||
+    value === 'paused' ||
     value === 'active' ||
     value === 'launch-ready'
   ) {

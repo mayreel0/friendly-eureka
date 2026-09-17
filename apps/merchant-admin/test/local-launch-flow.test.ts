@@ -34,6 +34,33 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       await page.getByRole('button', { name: 'Reached this landmark' }).click();
       await page.getByRole('button', { name: 'I have arrived' }).click();
       await expect(page.locator('[data-screen="arrived"]')).toBeVisible();
+      await page.goto(serverBaseUrl(merchantServer));
+      const pause = page.getByRole('button', { name: 'Pause guest access', exact: true });
+      await page.route('**/api/dev/pilot-state', async (route) => {
+        if (route.request().method() === 'POST') await route.fulfill({ status: 500, json: { error: 'unavailable' } });
+        else await route.continue();
+      });
+      await pause.click();
+      await expect(page.getByRole('alert')).toContainText('Could not save');
+      const oldToken = new URL(url).searchParams.get('token')!;
+      const routeUrl = `${serverBaseUrl(guestServer)}/api/guest/routes?token=${encodeURIComponent(oldToken)}`;
+      assert.equal((await fetch(routeUrl)).status, 200);
+      await page.unroute('**/api/dev/pilot-state');
+      await pause.click();
+      await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'paused');
+      await expect(page.locator('a[data-launch-url]')).toHaveCount(0);
+      assert.equal((await fetch(routeUrl)).status, 403);
+      assert.equal((await fetch(`${serverBaseUrl(guestServer)}/api/dev/guest-session`)).status, 409);
+      await page.reload();
+      await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'paused');
+      await page.getByRole('button', { name: 'Resume guest access', exact: true }).first().click();
+      await page.locator('[data-action-id="generate-guest-url"]').first().click();
+      await expect(page.locator('a[data-launch-url]')).toBeVisible();
+      assert.equal((await fetch(routeUrl)).status, 401);
+      const resumedUrl = await page.locator('a[data-launch-url]').getAttribute('href');
+      assert.ok(resumedUrl);
+      await page.goto(resumedUrl);
+      await expect(page.locator('[data-current-instruction]')).toContainText('main hallway');
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();

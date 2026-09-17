@@ -40,11 +40,11 @@ export function deriveNextPilotImplementationTarget(
     };
   }
 
-  if (state.stage === 'tested') {
+  if (state.stage === 'tested' || state.stage === 'paused') {
     return {
       id: 'activate-pilot-route',
-      label: 'Activate pilot route',
-      detail: 'Make the tested pilot route available for launch preparation.',
+      label: state.stage === 'paused' ? 'Resume guest access' : 'Activate pilot route',
+      detail: state.stage === 'paused' ? 'Resume this route and generate a new guest link.' : 'Make the tested pilot route available for launch preparation.',
     };
   }
 
@@ -121,8 +121,13 @@ export function createPilotRouteRecordingView(
       },
       {
         id: 'activate-route',
-        label: 'Activate route',
-        enabled: state.stage === 'tested',
+        label: state.stage === 'paused' ? 'Resume guest access' : 'Activate route',
+        enabled: state.stage === 'tested' || state.stage === 'paused',
+      },
+      {
+        id: 'pause-route',
+        label: 'Pause guest access',
+        enabled: ['active', 'launch-ready'].includes(state.stage),
       },
       {
         id: 'generate-guest-url',
@@ -157,7 +162,7 @@ export function createPilotRouteRecordingView(
 function createPilotProgressSummary(state: PilotRouteRecordingScreenState) {
   const completedSteps = [
     state.stage !== 'empty',
-    ['tested', 'active', 'launch-ready'].includes(state.stage),
+    ['tested', 'active', 'launch-ready', 'paused'].includes(state.stage),
     ['active', 'launch-ready'].includes(state.stage),
     state.hasQrPlacement,
     state.hasStaffFallbackNote,
@@ -210,6 +215,10 @@ export function applyLocalPilotRouteRecordingAction(
   >,
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {
+  if (actionId === 'pause-route') {
+    if (!['active', 'launch-ready'].includes(state.stage)) return state;
+    return { ...state, stage: 'paused', launchUrl: undefined, expiresAt: undefined };
+  }
   if (actionId === 'record-route') {
     return {
       ...state,
@@ -418,7 +427,7 @@ function createPilotReadinessChecklist(state: PilotRouteRecordingScreenState) {
     {
       id: 'test-route',
       label: 'Test route',
-      complete: ['tested', 'active', 'launch-ready'].includes(state.stage),
+      complete: ['tested', 'active', 'launch-ready', 'paused'].includes(state.stage),
     },
     {
       id: 'place-qr',
@@ -436,6 +445,7 @@ function createPilotReadinessChecklist(state: PilotRouteRecordingScreenState) {
 }
 
 function statusForPilotRouteRecordingStage(stage: PilotRouteRecordingScreenStage) {
+  if (stage === 'paused') return 'Guest access paused';
   if (stage === 'empty') {
     return 'Route not recorded';
   }
