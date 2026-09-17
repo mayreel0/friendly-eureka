@@ -51,7 +51,7 @@ export async function generateGuestSession(
       : 'Could not generate a guest link. Please try again.');
   }
 
-  return (await response.json()) as { launchUrl: string; expiresAt?: string };
+  return (await response.json()) as { launchUrl: string; expiresAt?: string; entryUrl?: string };
 }
 
 export async function loadPilotState(
@@ -104,7 +104,7 @@ export async function savePilotState(
   });
   if (response.status === 409) throw new PilotStateConflictError('Saved state changed in another tab or after a server restart. Load the latest state before continuing.');
   if (!response.ok) throw new Error('Failed to save pilot state');
-  return ((await response.json()) as PilotDevStateApiState).revision;
+  return (await response.json()) as PilotDevStateApiState;
 }
 
 export async function savePilotReadinessState(

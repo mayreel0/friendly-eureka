@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -48,6 +49,10 @@ export function createMerchantAdminDevServer(
   const previewApi = createPilotGuestApi({ preview: true });
   const guestApi = {
     issueSession: publishedApi.issueSession,
+    issueEntrySession(key: string) {
+      if (!key || key !== stateStore.read().recording.entryKey) return { ok: false as const, status: 404, error: 'entry-unavailable' };
+      return publishedApi.issueSession();
+    },
     fetchRoute(token: string) {
       const preview = previewApi.fetchRoute(token);
       return preview.ok ? preview : publishedApi.fetchRoute(token);
@@ -58,6 +63,8 @@ export function createMerchantAdminDevServer(
     previewApi.setRecording(recording);
   }
   syncRecording(stateStore.read().recording);
+  const entryUrlFor = (recording: PilotRouteRecordingState) => recording.entryKey && recording.routeId === 'pilot-restroom-route' &&
+    ['active', 'launch-ready'].includes(recording.stage) ? new URL(`/q/${recording.entryKey}`, guestOrigin).toString() : undefined;
 
   const server = createServer(async (request, response) => {
     try {
@@ -85,6 +92,7 @@ export function createMerchantAdminDevServer(
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
+            recording: { ...pilotState.recording, entryUrl: entryUrlFor(pilotState.recording) },
             revision: stateStore.revision(),
             nextTarget: deriveNextPilotImplementationTarget(
               toPilotRouteRecordingScreenState(pilotState),
@@ -102,6 +110,7 @@ export function createMerchantAdminDevServer(
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
+            recording: { ...pilotState.recording, entryUrl: entryUrlFor(pilotState.recording) },
             revision: stateStore.revision(),
             nextTarget: deriveNextPilotImplementationTarget(
               toPilotRouteRecordingScreenState(pilotState),
@@ -212,7 +221,9 @@ export function createMerchantAdminDevServer(
         }
         const launchUrl = new URL(`/?token=${encodeURIComponent(session.token)}`, guestOrigin).toString();
         if (requestUrl.pathname.endsWith('-url')) writeText(response, 200, launchUrl);
-        else writeJson(response, 200, { ...session, launchUrl });
+        else writeJson(response, 200, { ...session, launchUrl,
+          ...(requestUrl.pathname.endsWith('-preview') ? {} : { entryUrl: entryUrlFor(pilotState.recording) }),
+        });
         return;
       }
 
@@ -280,6 +291,7 @@ type PilotReadinessState = {
 };
 
 type PilotRouteRecordingState = {
+  entryKey?: string;
   testResult?: RouteTestResult;
   stage: PilotRouteRecordingScreenStage;
   routeId?: string;
@@ -292,10 +304,12 @@ type PilotRouteRecordingState = {
 function applyDirectionChange(previous: PilotRouteRecordingState, next: PilotRouteRecordingState): PilotRouteRecordingState {
   if (samePilotDirections(previous.directions, next.directions)) {
     if (['tested', 'active', 'launch-ready'].includes(next.stage) && !hasCurrentPassingTest(previous)) throw new RouteActivationError();
-    return { ...next, routeVersion: previous.routeVersion, testResult: previous.testResult };
+    return { ...next, routeVersion: previous.routeVersion, testResult: previous.testResult,
+      entryKey: previous.entryKey ?? (['active', 'launch-ready'].includes(next.stage) ? randomUUID() : undefined),
+    };
   }
   return { ...next, stage: 'recorded', routeId: 'pilot-restroom-route',
-    routeVersion: (previous.routeVersion ?? 1) + 1, testResult: previous.testResult, launchUrl: undefined, expiresAt: undefined };
+    routeVersion: (previous.routeVersion ?? 1) + 1, testResult: previous.testResult, entryKey: undefined, launchUrl: undefined, expiresAt: undefined };
 }
 
 type PilotState = {
@@ -441,6 +455,7 @@ function parsePilotRouteRecordingUpdate(value: unknown): PilotRouteRecordingStat
     directions: value.directions === undefined ? undefined : parsePilotDirections(value.directions),
     routeVersion: typeof value.routeVersion === 'number' && Number.isSafeInteger(value.routeVersion) && value.routeVersion > 0 ? value.routeVersion : undefined,
     testResult: parseSavedRouteTest(value.testResult),
+    entryKey: typeof value.entryKey === 'string' && /^[a-f0-9-]{36}$/.test(value.entryKey) ? value.entryKey : undefined,
   };
 }
 

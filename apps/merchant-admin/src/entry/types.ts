@@ -37,6 +37,7 @@ export type PilotRouteRecordingScreenState = {
   routeId?: string;
   launchUrl?: string;
   expiresAt?: string;
+  entryUrl?: string;
 };
 
 export type PilotImplementationTargetId =
@@ -99,6 +100,7 @@ export type PilotReadinessApiState = {
 };
 
 export type PilotRouteRecordingApiState = {
+  entryUrl?: string;
   testResult?: RouteTestResult;
   directions?: PilotDirections;
   routeVersion?: number;
@@ -117,7 +119,7 @@ export type PilotDevStateApiState = {
 };
 
 export type MerchantAdminElementEnvironment = {
-  generateGuestUrl?: () => Promise<{ launchUrl: string; expiresAt?: string }>;
+  generateGuestUrl?: () => Promise<{ launchUrl: string; expiresAt?: string; entryUrl?: string }>;
   loadPilotState?: () => Promise<PilotDevStateApiState>;
   loadReadiness?: () => Promise<PilotReadinessApiState>;
   loadRouteRecording?: () => Promise<PilotRouteRecordingApiState>;

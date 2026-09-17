@@ -7,7 +7,9 @@ import {
 import { samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
 import type { RouteTestResult } from './src/route-test-result.ts';
 
-export type PilotGuestApi = Pick<ReturnType<typeof createPilotGuestApi>, 'issueSession' | 'fetchRoute'>;
+export type PilotGuestApi = Pick<ReturnType<typeof createPilotGuestApi>, 'issueSession' | 'fetchRoute'> & {
+  issueEntrySession?: (key: string) => ReturnType<ReturnType<typeof createPilotGuestApi>['issueSession']>;
+};
 
 // Local pilot publishing only: the saved stages describe the existing simulated route.
 export function createPilotGuestApi(options: { now?: () => string; preview?: boolean } = {}) {

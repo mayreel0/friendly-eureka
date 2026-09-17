@@ -53,6 +53,8 @@ test('merchant actions work in a real browser and survive reload', async () => {
       await click(action);
     }
     await expect(screen).toHaveAttribute('data-stage', 'active');
+    await expect(page.locator('a[data-entry-url]')).toBeVisible();
+    await expect(page.locator('a[data-launch-url]')).toHaveCount(0);
     await page.getByRole('textbox', { name: 'Location', exact: true }).fill('Entrance');
     await page.getByRole('textbox', { name: 'Orientation', exact: true }).fill('Facing hallway');
     await page.getByRole('textbox', { name: 'Note', exact: true }).fill('Local simulation');
@@ -102,7 +104,7 @@ test('failed saves preserve state and drafts, then allow retry', async () => {
   });
 });
 
-test('guest links and QR can be refreshed without losing the current link on failure', async () => {
+test('temporary links refresh while the entrance QR stays stable and failures preserve the link', async () => {
   await withDashboard(async (page, origin) => {
     await page.goto(origin);
     for (const action of ['record-route', 'mark-test-passed', 'activate-route', 'mark-qr-placed', 'mark-staff-fallback-ready', 'generate-guest-url']) {
@@ -132,7 +134,7 @@ test('guest links and QR can be refreshed without losing the current link on fai
     const oldImage = await qr.getAttribute('src');
     await refresh.click();
     await expect(link).not.toHaveAttribute('href', original!);
-    await expect(qr).not.toHaveAttribute('src', oldImage!);
+    await expect(qr).toHaveAttribute('src', oldImage!);
     const refreshed = await link.getAttribute('href');
     const expires = await page.locator('[data-session-expires] time').getAttribute('datetime');
     await page.reload();
@@ -235,10 +237,10 @@ test('downloadable QR decodes to the configured phone URL after reload', async (
       stage: 'active', routeId: 'pilot-restroom-route',
     } });
     const sessionResponse = await page.request.get(`${origin}/api/dev/pilot-route-session`);
-    const session = await sessionResponse.json() as { launchUrl: string };
+    const session = await sessionResponse.json() as { launchUrl: string; entryUrl: string };
     assert.equal(new URL(session.launchUrl).origin, guestOrigin);
     await page.request.post(`${origin}/api/dev/pilot-state`, { data: {
-      recording: { stage: 'launch-ready', launchUrl: session.launchUrl },
+      recording: { stage: 'launch-ready', routeId: 'pilot-restroom-route', launchUrl: session.launchUrl },
       readiness: { hasQrPlacement: true, hasStaffFallbackNote: true, qaResults: {} },
       followUps: [],
     } });
@@ -258,7 +260,7 @@ test('downloadable QR decodes to the configured phone URL after reload', async (
         data: Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data) };
     });
     const decoded = jsQR(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height);
-    assert.equal(decoded?.data, session.launchUrl);
+    assert.equal(decoded?.data, session.entryUrl);
     await expect(page.locator('a[data-launch-url]')).toHaveAttribute('href', session.launchUrl);
     const downloadLink = page.getByRole('link', { name: 'Download QR image' });
     assert.equal(await downloadLink.getAttribute('href'), await qr.getAttribute('src'));

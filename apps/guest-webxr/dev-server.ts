@@ -34,6 +34,21 @@ export function createGuestWebxrDevServer(
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
 
+      if (requestUrl.pathname.startsWith('/q/')) {
+        const session = request.method === 'GET' ? guestApi.issueEntrySession?.(requestUrl.pathname.slice(3)) : undefined;
+        if (session?.ok) {
+          response.writeHead(303, { location: `/?token=${encodeURIComponent(session.token)}`,
+            'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+          response.end();
+        } else {
+          const status = request.method !== 'GET' ? 405 : session?.status ?? 404;
+          response.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+            'referrer-policy': 'no-referrer', ...(status === 429 ? { 'retry-after': '60' } : {}) });
+          response.end(`<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Route unavailable</title><style>body{font:16px/1.5 system-ui,sans-serif;color:#182523;background:#f5f7f6;margin:0}main{max-width:640px;margin:auto;padding:32px 24px}h1{font-size:28px}a{display:inline-block;padding:12px 0;color:#12674f}</style><main><h1>Route unavailable</h1><p>${status === 429 ? 'Too many scans. Try again in a minute.' : 'Ask staff for restroom directions.'}</p>${status === 429 ? '<a href="">Try again</a>' : ''}</main></html>`);
+        }
+        return;
+      }
+
       if (requestUrl.pathname === '/src/entry/browser.ts') {
         const bundle = await build({
           entryPoints: [join(resolvedAppRoot, 'src/entry/browser.ts')],

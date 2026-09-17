@@ -40,7 +40,7 @@ Use `npm run dev:pilot` for the connected administrator-to-guest flow. Record th
 
 This is a local prototype, not a production publishing API: route geometry is still seeded, test success is manually declared, and developer state endpoints are unauthenticated. Do not expose the merchant dev server publicly or treat its state endpoints as authorization boundaries.
 
-The merchant dashboard shows each guest link's expiry time. Use **Refresh guest URL** to issue a new link and downloadable QR without repeating setup. Failed refreshes preserve the displayed link; rate-limited requests can be retried after a minute. Session URLs and expiry metadata are not written to the saved state file.
+The merchant dashboard shows each temporary guest link's expiry time. Use **Refresh guest URL** to issue a new temporary link without repeating setup; the entrance QR stays unchanged. Failed refreshes preserve the displayed link; rate-limited requests can be retried after a minute. Session URLs and expiry metadata are not written to the saved state file.
 
 Use **Pause guest access** to stop new session issuance and route requests. Pausing preserves setup and evidence, clears the dashboard's guest link, and survives restart. **Resume guest access** requires generating a new link; old tokens remain invalid. Directions already loaded on a phone remain in memory for offline use, so pausing is not a remote wipe or an emergency notification system.
 
@@ -51,6 +51,8 @@ After recording the example route, edit the two instructions and distances under
 Use **Preview route**, then **Open route preview**, to walk through saved directions on the actual guest screen before marking a test passed. Unsaved directions must be saved first. Preview links expire after 20 minutes, carry a visible preview label, and are invalidated by route edits, stage changes, or server restart. Only the merchant dev server issues them; the public guest session endpoint still requires activation. Previews do not automatically mark the test passed and do not prove AR alignment. Keep preview links private and do not expose the unauthenticated merchant dev server.
 
 Record a **Route test note** before choosing **Mark test passed** or **Mark test failed**. The server binds that manual result to the saved route version and stamps the actual time. Failure stops publication; editing directions retains the old result as previous-version evidence but requires a new pass before activation. Results survive restart. Legacy saved activation without a versioned passing result restores to the recorded stage and must be tested again. These are operator-declared walkthrough results, not automatically verified AR tests.
+
+The connected dashboard's **Entrance QR** now contains an entry link rather than a 20-minute token. Each scan issues a fresh temporary session. The same printed QR survives server restart and pause/resume while its route version and public origin stay unchanged; editing directions requires a new QR after testing and activation. **Temporary guest session** remains a short-lived direct test link. The local pilot's shared five-issuance-per-minute limit also applies to scans. A new Cloudflare Quick Tunnel hostname requires a new QR. Do not publish the merchant dev server or use this local issuer as production authentication.
 
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
