@@ -11,7 +11,7 @@ import type { MerchantAdminElementEnvironment, PilotRouteRecordingScreenActionId
 import { renderPilotRouteRecordingScreen, type QrPlacementDraft } from './view.ts';
 import { merchantStyles } from './styles.ts';
 import { createDirectionsDraft } from './directions-editor.ts';
-import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections } from '../pilot-directions.ts';
+import { InvalidPilotDirectionsError, maxPilotSteps, parsePilotDirections, samePilotDirections } from '../pilot-directions.ts';
 import { InvalidRouteTestError, parseRouteTestInput } from '../route-test-result.ts';
 
 export type * from './types.ts';
@@ -55,6 +55,20 @@ export function registerMerchantAdminElement(
         onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
         directionsDraft: this.directionsDraft,
+        onAddDirection: () => {
+          if (this.busy || this.conflict || this.directionsDraft.length >= maxPilotSteps) return;
+          this.directionsDraft = [...this.directionsDraft, { instruction: '', distanceMeters: '' }];
+          this.directionsEdited = true;
+          this.previewUrl = undefined;
+          this.requestUpdate();
+        },
+        onRemoveDirection: (index) => {
+          if (this.busy || this.conflict || this.directionsDraft.length <= 1) return;
+          this.directionsDraft = this.directionsDraft.filter((_, stepIndex) => stepIndex !== index);
+          this.directionsEdited = true;
+          this.previewUrl = undefined;
+          this.requestUpdate();
+        },
         onDirectionsDraft: (index, field, value) => {
           this.directionsEdited = true;
           this.directionsDraft = this.directionsDraft.map((step, stepIndex) => stepIndex === index ? { ...step, [field]: value } : step);
