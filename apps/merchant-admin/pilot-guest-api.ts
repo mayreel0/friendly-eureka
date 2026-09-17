@@ -5,6 +5,7 @@ import {
   pilotRouteId, pilotStoreId, type PilotRouteRecordingStage,
 } from './src/index.ts';
 import { samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
+import type { RouteTestResult } from './src/route-test-result.ts';
 
 export type PilotGuestApi = Pick<ReturnType<typeof createPilotGuestApi>, 'issueSession' | 'fetchRoute'>;
 
@@ -19,7 +20,7 @@ export function createPilotGuestApi(options: { now?: () => string; preview?: boo
   const unavailable = () => ({ ok: false as const, status: 409, error: 'pilot-route-not-active' });
 
   return {
-    setRecording(recording: { stage: PilotRouteRecordingStage; routeId?: string; directions?: PilotDirections; routeVersion?: number }) {
+    setRecording(recording: { stage: PilotRouteRecordingStage; routeId?: string; directions?: PilotDirections; routeVersion?: number; testResult?: RouteTestResult }) {
       const nextPublished = recording.routeId === pilotRouteId &&
         (options.preview ? recording.stage !== 'empty' : recording.stage === 'active' || recording.stage === 'launch-ready');
       if (nextPublished === published && samePilotDirections(directions, recording.directions) && routeVersion === recording.routeVersion &&
@@ -32,7 +33,7 @@ export function createPilotGuestApi(options: { now?: () => string; preview?: boo
       published = nextPublished;
       qrKey = '';
       if (!published) return;
-      let state = createPilotRouteRecordingUiState(context, { directions, routeVersion });
+      let state = createPilotRouteRecordingUiState(context, { directions, routeVersion, testRecordedAt: recording.testResult?.recordedAt });
       for (const action of ['record-route', 'mark-test-passed', 'activate-route'] as const) {
         state = applyPilotRouteRecordingUiAction(state, action);
       }

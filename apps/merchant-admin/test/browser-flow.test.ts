@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { chromium, expect, type Page } from '@playwright/test';
 const jsQR = createRequire(import.meta.url)('jsqr') as typeof import('jsqr').default;
 import { createMerchantAdminDevServer } from '../dev-server.ts';
+import { prepareTestedRoute } from './pilot-fixture.ts';
 
 async function withDashboard(
   run: (page: Page, origin: string) => Promise<void>,
@@ -41,8 +42,9 @@ test('merchant actions work in a real browser and survive reload', async () => {
     await expect(page.locator('a[data-launch-url]')).toHaveCount(0);
     await expect(page.locator('[data-action-id="generate-guest-url"]').first()).toBeDisabled();
     const click = async (id: string) => {
+      if (id === 'mark-test-passed') await page.getByRole('textbox', { name: 'Route test note', exact: true }).fill('Walked both segments.');
       const saved = page.waitForResponse((response) =>
-        response.url().endsWith('/api/dev/pilot-state') && response.request().method() === 'POST',
+        /\/api\/dev\/pilot-(state|route-test)$/.test(response.url()) && response.request().method() === 'POST',
       );
       await page.locator(`[data-action-id="${id}"]`).first().click();
       assert.equal((await saved).status(), 200);
@@ -104,6 +106,7 @@ test('guest links and QR can be refreshed without losing the current link on fai
   await withDashboard(async (page, origin) => {
     await page.goto(origin);
     for (const action of ['record-route', 'mark-test-passed', 'activate-route', 'mark-qr-placed', 'mark-staff-fallback-ready', 'generate-guest-url']) {
+      if (action === 'mark-test-passed') await page.getByRole('textbox', { name: 'Route test note', exact: true }).fill('Walked both segments.');
       await page.locator(`[data-action-id="${action}"]`).first().click();
     }
     const link = page.locator('a[data-launch-url]');
@@ -152,10 +155,32 @@ test('load failures block overwriting saved data and recover on reload', async (
   });
 });
 
+test('failed route-test saves preserve the note and publication until retry succeeds', async () => {
+  await withDashboard(async (page, origin) => {
+    await prepareTestedRoute(origin);
+    await page.request.post(`${origin}/api/dev/pilot-route-recording`, { data: { stage: 'active', routeId: 'pilot-restroom-route' } });
+    await page.goto(origin);
+    await page.getByRole('textbox', { name: 'Route test note', exact: true }).fill('Hallway blocked.');
+    await page.route('**/api/dev/pilot-route-test', (route) => route.fulfill({ status: 500, json: { error: 'unavailable' } }));
+    await page.getByRole('button', { name: 'Mark test failed', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Could not save the route test');
+    await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'active');
+    await expect(page.getByRole('textbox', { name: 'Route test note', exact: true })).toHaveValue('Hallway blocked.');
+    await page.unroute('**/api/dev/pilot-route-test');
+    await page.getByRole('button', { name: 'Mark test failed', exact: true }).click();
+    await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'recorded');
+    await expect(page.locator('[data-route-test-result]')).toContainText('fail (route v1)');
+    await page.reload();
+    await expect(page.locator('[data-route-test-result]')).toContainText('Hallway blocked.');
+    await expect(page.getByRole('button', { name: 'Activate route', exact: true })).toBeDisabled();
+  });
+});
+
 test('a stale administrator tab cannot overwrite paused guest access', async () => {
   await withDashboard(async (page, origin) => {
     await page.goto(origin);
     for (const action of ['record-route', 'mark-test-passed', 'activate-route']) {
+      if (action === 'mark-test-passed') await page.getByRole('textbox', { name: 'Route test note', exact: true }).fill('Walked both segments.');
       await page.locator(`[data-action-id="${action}"]`).first().click();
     }
     const other = await page.context().newPage();
@@ -179,6 +204,7 @@ test('a stale administrator tab cannot overwrite paused guest access', async () 
 
 test('saved evidence restores readiness and unsafe guest links stay inert', async () => {
   await withDashboard(async (page, origin) => {
+    await prepareTestedRoute(origin);
     await page.request.post(`${origin}/api/dev/pilot-state`, { data: {
       recording: { stage: 'launch-ready', launchUrl: 'javascript:alert(1)' },
       readiness: {
@@ -204,6 +230,7 @@ test('saved evidence restores readiness and unsafe guest links stay inert', asyn
 test('downloadable QR decodes to the configured phone URL after reload', async () => {
   const guestOrigin = 'https://pilot.example.com';
   await withDashboard(async (page, origin) => {
+    await prepareTestedRoute(origin);
     await page.request.post(`${origin}/api/dev/pilot-route-recording`, { data: {
       stage: 'active', routeId: 'pilot-restroom-route',
     } });
@@ -245,6 +272,7 @@ test('downloadable QR decodes to the configured phone URL after reload', async (
 
 test('QR overflow reports an error while keeping the guest link available', async () => {
   await withDashboard(async (page, origin) => {
+    await prepareTestedRoute(origin);
     const launchUrl = `https://pilot.example.com/?token=${'a'.repeat(5000)}`;
     await page.request.post(`${origin}/api/dev/pilot-state`, { data: {
       recording: { stage: 'launch-ready', launchUrl },

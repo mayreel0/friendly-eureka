@@ -50,6 +50,8 @@ After recording the example route, edit the two instructions and distances under
 
 Use **Preview route**, then **Open route preview**, to walk through saved directions on the actual guest screen before marking a test passed. Unsaved directions must be saved first. Preview links expire after 20 minutes, carry a visible preview label, and are invalidated by route edits, stage changes, or server restart. Only the merchant dev server issues them; the public guest session endpoint still requires activation. Previews do not automatically mark the test passed and do not prove AR alignment. Keep preview links private and do not expose the unauthenticated merchant dev server.
 
+Record a **Route test note** before choosing **Mark test passed** or **Mark test failed**. The server binds that manual result to the saved route version and stamps the actual time. Failure stops publication; editing directions retains the old result as previous-version evidence but requires a new pass before activation. Results survive restart. Legacy saved activation without a versioned passing result restores to the recorded stage and must be tested again. These are operator-declared walkthrough results, not automatically verified AR tests.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

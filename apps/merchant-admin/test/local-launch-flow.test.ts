@@ -6,6 +6,7 @@ import { chromium, expect } from '@playwright/test';
 
 import { createGuestWebxrDevServer } from '../../guest-webxr/dev-server.ts';
 import { createMerchantAdminDevServer } from '../dev-server.ts';
+import { prepareTestedRoute } from './pilot-fixture.ts';
 
 describe('local merchant admin to guest WebXR launch flow', () => {
   it('connects real administrator actions to guest landmark arrival', async () => {
@@ -24,6 +25,7 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       page.on('pageerror', (error) => errors.push(error.message));
       await page.goto(serverBaseUrl(merchantServer));
       for (const action of ['record-route', 'mark-test-passed', 'activate-route', 'mark-qr-placed', 'mark-staff-fallback-ready', 'generate-guest-url']) {
+        if (action === 'mark-test-passed') await page.getByRole('textbox', { name: 'Route test note', exact: true }).fill('Walked both segments.');
         await page.locator(`[data-action-id="${action}"]`).first().click();
       }
       await expect(page.locator('a[data-launch-url]')).toBeVisible();
@@ -95,6 +97,7 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       assert.equal((await fetch(`${serverBaseUrl(guestServer)}/api/dev/pilot-route-preview`)).status, 404);
       await preview.close();
       for (const action of ['mark-test-passed', 'activate-route', 'generate-guest-url']) {
+        if (action === 'mark-test-passed') await page.getByRole('textbox', { name: 'Route test note', exact: true }).fill('Walked the edited route.');
         await page.locator(`[data-action-id="${action}"]`).first().click();
       }
       await expect(page.locator('a[data-launch-url]')).toBeVisible();
@@ -135,7 +138,8 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       const merchantBaseUrl = serverBaseUrl(merchantServer);
       assert.equal((await fetch(`${merchantBaseUrl}/api/dev/pilot-route-session`)).status, 409);
       assert.equal((await fetch(`${guestBaseUrl}/api/dev/guest-session`)).status, 409);
-      for (const stage of ['recorded', 'tested', 'active']) {
+      await prepareTestedRoute(merchantBaseUrl);
+      for (const stage of ['active']) {
         const saved = await fetch(`${merchantBaseUrl}/api/dev/pilot-route-recording`, {
           method: 'POST', headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ stage, routeId: 'pilot-restroom-route' }),

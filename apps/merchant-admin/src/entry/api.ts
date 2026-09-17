@@ -15,6 +15,16 @@ import {
 export class GuestSessionError extends Error {}
 export class PilotStateConflictError extends Error {}
 
+export async function recordRouteTest(result: 'pass' | 'fail', note: string, routeVersion: number, revision?: string) {
+  const response = await fetch('/api/dev/pilot-route-test', {
+    method: 'POST', headers: { 'content-type': 'application/json', ...(revision ? { 'x-pilot-revision': revision } : {}) },
+    body: JSON.stringify({ result, note, routeVersion }),
+  });
+  if (response.status === 409) throw new PilotStateConflictError('Saved state changed in another tab or after a server restart. Load the latest state before continuing.');
+  if (!response.ok) throw new GuestSessionError('Could not save the route test. Please try again.');
+  return (await response.json()) as PilotDevStateApiState;
+}
+
 export async function generateRoutePreview(revision?: string) {
   const response = await fetch('/api/dev/pilot-route-preview', {
     headers: revision ? { 'x-pilot-revision': revision } : {},

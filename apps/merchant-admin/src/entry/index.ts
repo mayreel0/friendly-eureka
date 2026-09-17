@@ -1,5 +1,5 @@
 import { LitElement } from 'lit';
-import { generateGuestSession, generateRoutePreview, GuestSessionError, loadPilotState, PilotStateConflictError, savePilotState } from './api.ts';
+import { generateGuestSession, generateRoutePreview, GuestSessionError, loadPilotState, PilotStateConflictError, recordRouteTest, savePilotState } from './api.ts';
 import {
   applyLocalPilotRouteRecordingAction,
   completePilotFollowUp,
@@ -12,6 +12,7 @@ import { renderPilotRouteRecordingScreen, type QrPlacementDraft } from './view.t
 import { merchantStyles } from './styles.ts';
 import { createDirectionsDraft } from './directions-editor.ts';
 import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections } from '../pilot-directions.ts';
+import { InvalidRouteTestError, parseRouteTestInput } from '../route-test-result.ts';
 
 export type * from './types.ts';
 export * from './state.ts';
@@ -37,6 +38,7 @@ export function registerMerchantAdminElement(
     private directionsDraft = createDirectionsDraft();
     private directionsEdited = false;
     private previewUrl?: string;
+    private testNote = '';
 
     protected firstUpdated() {
       void this.loadPersistedState();
@@ -48,6 +50,8 @@ export function registerMerchantAdminElement(
         busy: this.busy || this.conflict,
         error: this.error,
         previewUrl: this.previewUrl,
+        testNote: this.testNote,
+        onTestNote: (note) => { this.testNote = note; },
         onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
         directionsDraft: this.directionsDraft,
@@ -72,7 +76,16 @@ export function registerMerchantAdminElement(
       this.requestUpdate();
       try {
         let next = this.state;
-        if (id === 'preview-route') {
+        if (id === 'mark-test-passed' || id === 'mark-test-failed') {
+          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ instruction: step.instruction, distanceMeters: Number(step.distanceMeters) })));
+          if (!samePilotDirections(next.directions, draft)) throw new GuestSessionError('Save route directions before recording their test result.');
+          const input = parseRouteTestInput({ result: id === 'mark-test-passed' ? 'pass' : 'fail', note: this.testNote, routeVersion: next.routeVersion ?? 1 });
+          const saved = await recordRouteTest(input.result, input.note, input.routeVersion, this.revision);
+          this.state = { ...next, launchUrl: undefined, expiresAt: undefined, ...saved.recording };
+          this.revision = saved.revision;
+          this.previewUrl = undefined;
+          return;
+        } else if (id === 'preview-route') {
           const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ instruction: step.instruction, distanceMeters: Number(step.distanceMeters) })));
           if (!samePilotDirections(this.state.directions, draft)) throw new GuestSessionError('Save route directions before previewing them.');
           this.previewUrl = (await generateRoutePreview(this.revision)).launchUrl;
@@ -105,7 +118,7 @@ export function registerMerchantAdminElement(
         }
       } catch (error) {
         this.conflict = error instanceof PilotStateConflictError;
-        this.error = error instanceof GuestSessionError || error instanceof PilotStateConflictError || error instanceof InvalidPilotDirectionsError
+        this.error = error instanceof GuestSessionError || error instanceof PilotStateConflictError || error instanceof InvalidPilotDirectionsError || error instanceof InvalidRouteTestError
           ? error.message : 'Could not save this action. Please try again.';
       } finally {
         this.busy = false;

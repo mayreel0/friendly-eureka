@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { createPilotStateStore, PilotStateConflictError, PilotStateSaveError } from './pilot-state-store.ts';
 import { createPilotGuestApi } from './pilot-guest-api.ts';
+import { hasCurrentPassingTest, InvalidRouteTestError, parseRouteTestInput, parseSavedRouteTest, type RouteTestResult } from './src/route-test-result.ts';
 import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
 import type {
@@ -20,6 +21,7 @@ import type {
 const currentFile = fileURLToPath(import.meta.url);
 const appRoot = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = resolve(appRoot, '../..');
+class RouteActivationError extends Error {}
 export const defaultPilotStateFile = join(repoRoot, '.lechigo', 'pilot-state.json');
 
 const contentTypes = new Map([
@@ -113,6 +115,26 @@ export function createMerchantAdminDevServer(
           status: 405,
           error: 'method-not-allowed',
         });
+        return;
+      }
+
+      if (requestUrl.pathname === '/api/dev/pilot-route-test') {
+        if (request.method !== 'POST') {
+          writeJson(response, 405, { ok: false, error: 'method-not-allowed' });
+          return;
+        }
+        const input = parseRouteTestInput(await readJson(request));
+        pilotState = await stateStore.update((previous) => {
+          if (previous.recording.stage === 'empty') throw new InvalidRouteTestError('Record a route first.');
+          if (input.routeVersion !== (previous.recording.routeVersion ?? 1)) throw new PilotStateConflictError('route-version-conflict');
+          return { ...previous, recording: { ...previous.recording,
+            stage: input.result === 'pass' ? 'tested' : 'recorded',
+            launchUrl: undefined, expiresAt: undefined,
+            testResult: { ...input, recordedAt: new Date().toISOString() },
+          } };
+        }, expectedRevision);
+        syncRecording(pilotState.recording);
+        writeJson(response, 200, { ok: true, ...pilotState, revision: stateStore.revision() });
         return;
       }
 
@@ -212,6 +234,14 @@ export function createMerchantAdminDevServer(
       });
       response.end(body);
     } catch (error) {
+      if (error instanceof RouteActivationError) {
+        writeJson(response, 422, { ok: false, error: 'current-passing-test-required' });
+        return;
+      }
+      if (error instanceof InvalidRouteTestError) {
+        writeJson(response, 400, { ok: false, error: 'invalid-route-test' });
+        return;
+      }
       if (error instanceof InvalidPilotDirectionsError) {
         writeJson(response, 400, { ok: false, error: 'invalid-pilot-directions' });
         return;
@@ -250,6 +280,7 @@ type PilotReadinessState = {
 };
 
 type PilotRouteRecordingState = {
+  testResult?: RouteTestResult;
   stage: PilotRouteRecordingScreenStage;
   routeId?: string;
   launchUrl?: string;
@@ -260,10 +291,11 @@ type PilotRouteRecordingState = {
 
 function applyDirectionChange(previous: PilotRouteRecordingState, next: PilotRouteRecordingState): PilotRouteRecordingState {
   if (samePilotDirections(previous.directions, next.directions)) {
-    return { ...next, routeVersion: previous.routeVersion };
+    if (['tested', 'active', 'launch-ready'].includes(next.stage) && !hasCurrentPassingTest(previous)) throw new RouteActivationError();
+    return { ...next, routeVersion: previous.routeVersion, testResult: previous.testResult };
   }
   return { ...next, stage: 'recorded', routeId: 'pilot-restroom-route',
-    routeVersion: (previous.routeVersion ?? 1) + 1, launchUrl: undefined, expiresAt: undefined };
+    routeVersion: (previous.routeVersion ?? 1) + 1, testResult: previous.testResult, launchUrl: undefined, expiresAt: undefined };
 }
 
 type PilotState = {
@@ -291,7 +323,11 @@ function parseSavedPilotState(value: unknown): PilotState {
     !['empty', 'recorded', 'tested', 'active', 'launch-ready', 'paused'].includes(String(value.recording.stage))) {
     throw new Error('Invalid saved pilot state');
   }
-  return toPersistedPilotState(parsePilotStateUpdate(value));
+  const restored = toPersistedPilotState(parsePilotStateUpdate(value));
+  if (['tested', 'active', 'launch-ready', 'paused'].includes(restored.recording.stage) && !hasCurrentPassingTest(restored.recording)) {
+    restored.recording = { ...restored.recording, stage: 'recorded', launchUrl: undefined, expiresAt: undefined };
+  }
+  return restored;
 }
 
 function toPilotRouteRecordingScreenState(
@@ -404,6 +440,7 @@ function parsePilotRouteRecordingUpdate(value: unknown): PilotRouteRecordingStat
     expiresAt: typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt)) ? value.expiresAt : undefined,
     directions: value.directions === undefined ? undefined : parsePilotDirections(value.directions),
     routeVersion: typeof value.routeVersion === 'number' && Number.isSafeInteger(value.routeVersion) && value.routeVersion > 0 ? value.routeVersion : undefined,
+    testResult: parseSavedRouteTest(value.testResult),
   };
 }
 
