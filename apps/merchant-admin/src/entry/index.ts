@@ -1,5 +1,5 @@
 import { LitElement } from 'lit';
-import { generateGuestSession, GuestSessionError, loadPilotState, PilotStateConflictError, savePilotState } from './api.ts';
+import { generateGuestSession, generateRoutePreview, GuestSessionError, loadPilotState, PilotStateConflictError, savePilotState } from './api.ts';
 import {
   applyLocalPilotRouteRecordingAction,
   completePilotFollowUp,
@@ -36,6 +36,7 @@ export function registerMerchantAdminElement(
     private conflict = false;
     private directionsDraft = createDirectionsDraft();
     private directionsEdited = false;
+    private previewUrl?: string;
 
     protected firstUpdated() {
       void this.loadPersistedState();
@@ -46,12 +47,15 @@ export function registerMerchantAdminElement(
         guestOrigin: environment.guestOrigin ?? 'http://127.0.0.1:4173',
         busy: this.busy || this.conflict,
         error: this.error,
+        previewUrl: this.previewUrl,
         onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
         directionsDraft: this.directionsDraft,
         onDirectionsDraft: (index, field, value) => {
           this.directionsEdited = true;
           this.directionsDraft = this.directionsDraft.map((step, stepIndex) => stepIndex === index ? { ...step, [field]: value } : step);
+          this.previewUrl = undefined;
+          this.requestUpdate();
         },
         onDraft: (field, value) => {
           this.draftEdited = true;
@@ -68,7 +72,12 @@ export function registerMerchantAdminElement(
       this.requestUpdate();
       try {
         let next = this.state;
-        if (id === 'save-directions') {
+        if (id === 'preview-route') {
+          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ instruction: step.instruction, distanceMeters: Number(step.distanceMeters) })));
+          if (!samePilotDirections(this.state.directions, draft)) throw new GuestSessionError('Save route directions before previewing them.');
+          this.previewUrl = (await generateRoutePreview(this.revision)).launchUrl;
+          return;
+        } else if (id === 'save-directions') {
           const directions = parsePilotDirections(this.directionsDraft.map((step) => ({
             instruction: step.instruction, distanceMeters: Number(step.distanceMeters),
           })));
@@ -89,6 +98,7 @@ export function registerMerchantAdminElement(
         }
         this.revision = await savePilotState(environment, next, this.revision);
         this.state = next;
+        this.previewUrl = undefined;
         if (id === 'save-directions') {
           this.directionsDraft = createDirectionsDraft(next.directions);
           this.directionsEdited = false;
@@ -108,6 +118,7 @@ export function registerMerchantAdminElement(
       this.requestUpdate();
       try {
         const pilot = await loadPilotState(environment);
+        this.previewUrl = undefined;
         this.revision = pilot.revision;
         const evidence = pilot.readiness.qrPlacementEvidence;
         this.state = {

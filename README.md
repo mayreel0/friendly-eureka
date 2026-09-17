@@ -48,6 +48,8 @@ Dashboard saves include the revision loaded by that tab. If another tab saves fi
 
 After recording the example route, edit the two instructions and distances under **Route directions**. **Save route directions** persists the edits, increments the route version, invalidates old guest sessions, and returns the route to the recorded stage. Mark the route test passed, activate, and generate a fresh link to see the edited guidance. Save failures keep unsaved fields. This edits manual guidance only: anchor locations remain seeded, and it does not add native tracking, pose capture, or new landmarks.
 
+Use **Preview route**, then **Open route preview**, to walk through saved directions on the actual guest screen before marking a test passed. Unsaved directions must be saved first. Preview links expire after 20 minutes, carry a visible preview label, and are invalidated by route edits, stage changes, or server restart. Only the merchant dev server issues them; the public guest session endpoint still requires activation. Previews do not automatically mark the test passed and do not prove AR alignment. Keep preview links private and do not expose the unauthenticated merchant dev server.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

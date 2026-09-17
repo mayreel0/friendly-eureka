@@ -133,7 +133,10 @@ function createSeededPilotGuestApi(): PilotGuestApi {
 
   return {
     issueSession: () => ({ ok: true, token: recording.token, expiresAt: recording.expiresAt }),
-    fetchRoute: (token) => fetchGuestRoute(context, { token }),
+    fetchRoute: (token) => {
+      const result = fetchGuestRoute(context, { token });
+      return result.ok ? { ...result, preview: false } : result;
+    },
   };
 }
 

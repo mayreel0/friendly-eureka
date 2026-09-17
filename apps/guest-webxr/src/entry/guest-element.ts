@@ -77,6 +77,7 @@ export class GuestEntryElement extends LitElement {
     const recovery = this.config.trackingConfidence !== 'normal' || this.config.driftMeters > 1.5;
     return html`
       <main data-screen=${arrived ? 'arrived' : 'manual-fallback'}>
+        ${this.config.preview ? html`<p data-route-preview role="status">Route preview - not a published guest link</p>` : nothing}
         ${this.config.network === 'offline' ? html`<p data-network-status role="status">Offline. These directions remain available.</p>` : nothing}
         <header><p>Directions to ${destination}</p>
           <p data-progress>${arrived ? 'Route complete' : `Step ${this.stepIndex + 1} of ${steps.length}`}</p>

@@ -42,8 +42,20 @@ export function createMerchantAdminDevServer(
     parse: parseSavedPilotState,
     forDisk: toPersistedPilotState,
   });
-  const guestApi = createPilotGuestApi();
-  guestApi.setRecording(stateStore.read().recording);
+  const publishedApi = createPilotGuestApi();
+  const previewApi = createPilotGuestApi({ preview: true });
+  const guestApi = {
+    issueSession: publishedApi.issueSession,
+    fetchRoute(token: string) {
+      const preview = previewApi.fetchRoute(token);
+      return preview.ok ? preview : publishedApi.fetchRoute(token);
+    },
+  };
+  function syncRecording(recording: PilotRouteRecordingState) {
+    publishedApi.setRecording(recording);
+    previewApi.setRecording(recording);
+  }
+  syncRecording(stateStore.read().recording);
 
   const server = createServer(async (request, response) => {
     try {
@@ -84,7 +96,7 @@ export function createMerchantAdminDevServer(
           pilotState = await stateStore.update((previous) => ({
             ...update, recording: applyDirectionChange(previous.recording, update.recording),
           }), expectedRevision);
-          guestApi.setRecording(pilotState.recording);
+          syncRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
@@ -118,7 +130,7 @@ export function createMerchantAdminDevServer(
           pilotState = await stateStore.update((previous) => ({
             ...previous, recording: applyDirectionChange(previous.recording, recording),
           }), expectedRevision);
-          guestApi.setRecording(pilotState.recording);
+          syncRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
             ...pilotState.recording,
@@ -161,9 +173,17 @@ export function createMerchantAdminDevServer(
         return;
       }
 
-      if (requestUrl.pathname === '/api/dev/pilot-route-session' ||
+      if (requestUrl.pathname === '/api/dev/pilot-route-preview' ||
+        requestUrl.pathname === '/api/dev/pilot-route-session' ||
         requestUrl.pathname === '/api/dev/pilot-route-session-url') {
-        const session = guestApi.issueSession();
+        if (request.method !== 'GET') {
+          writeJson(response, 405, { ok: false, error: 'method-not-allowed' });
+          return;
+        }
+        if (requestUrl.pathname.endsWith('-preview') && expectedRevision !== undefined && expectedRevision !== stateStore.revision()) {
+          throw new PilotStateConflictError('pilot-state-conflict');
+        }
+        const session = requestUrl.pathname.endsWith('-preview') ? previewApi.issueSession() : guestApi.issueSession();
         if (!session.ok) {
           writeJson(response, session.status, session);
           return;

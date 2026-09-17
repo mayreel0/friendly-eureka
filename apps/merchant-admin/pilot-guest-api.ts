@@ -9,19 +9,22 @@ import { samePilotDirections, type PilotDirections } from './src/pilot-direction
 export type PilotGuestApi = Pick<ReturnType<typeof createPilotGuestApi>, 'issueSession' | 'fetchRoute'>;
 
 // Local pilot publishing only: the saved stages describe the existing simulated route.
-export function createPilotGuestApi(options: { now?: () => string } = {}) {
+export function createPilotGuestApi(options: { now?: () => string; preview?: boolean } = {}) {
   let context = createApiContext({ signingSecret: randomUUID(), now: options.now });
   let published = false;
   let qrKey = '';
   let directions: PilotDirections | undefined;
   let routeVersion: number | undefined;
+  let stage: PilotRouteRecordingStage | undefined;
   const unavailable = () => ({ ok: false as const, status: 409, error: 'pilot-route-not-active' });
 
   return {
     setRecording(recording: { stage: PilotRouteRecordingStage; routeId?: string; directions?: PilotDirections; routeVersion?: number }) {
       const nextPublished = recording.routeId === pilotRouteId &&
-        (recording.stage === 'active' || recording.stage === 'launch-ready');
-      if (nextPublished === published && samePilotDirections(directions, recording.directions) && routeVersion === recording.routeVersion) return;
+        (options.preview ? recording.stage !== 'empty' : recording.stage === 'active' || recording.stage === 'launch-ready');
+      if (nextPublished === published && samePilotDirections(directions, recording.directions) && routeVersion === recording.routeVersion &&
+        (!options.preview || stage === recording.stage)) return;
+      stage = recording.stage;
       directions = recording.directions;
       routeVersion = recording.routeVersion;
       // Rotating the local runtime revokes old sessions when a route is re-recorded.
@@ -47,7 +50,8 @@ export function createPilotGuestApi(options: { now?: () => string } = {}) {
     },
     fetchRoute(token: string) {
       if (!published) return { ok: false as const, status: 403, error: 'pilot-route-not-active' };
-      return fetchGuestRoute(context, { token });
+      const result = fetchGuestRoute(context, { token });
+      return result.ok ? { ...result, preview: options.preview === true } : result;
     },
   };
 }

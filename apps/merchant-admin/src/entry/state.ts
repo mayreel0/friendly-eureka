@@ -130,6 +130,11 @@ export function createPilotRouteRecordingView(
         enabled: ['active', 'launch-ready'].includes(state.stage),
       },
       {
+        id: 'preview-route',
+        label: 'Preview route',
+        enabled: state.stage !== 'empty',
+      },
+      {
         id: 'generate-guest-url',
         label: state.stage === 'launch-ready' ? 'Refresh guest URL' : 'Generate guest URL',
         enabled: ['active', 'launch-ready'].includes(state.stage) && isReadyToLaunch,
@@ -213,6 +218,7 @@ export function applyLocalPilotRouteRecordingAction(
     | 'complete-follow-up'
     | 'record-qr-placement-evidence'
     | 'save-directions'
+    | 'preview-route'
   >,
   now: (() => string) | undefined = defaultNow,
 ): PilotRouteRecordingScreenState {

@@ -15,6 +15,17 @@ import {
 export class GuestSessionError extends Error {}
 export class PilotStateConflictError extends Error {}
 
+export async function generateRoutePreview(revision?: string) {
+  const response = await fetch('/api/dev/pilot-route-preview', {
+    headers: revision ? { 'x-pilot-revision': revision } : {},
+  });
+  if (response.status === 409) throw new PilotStateConflictError('Saved state changed in another tab or after a server restart. Load the latest state before continuing.');
+  if (!response.ok) throw new GuestSessionError(response.status === 429
+    ? 'Too many previews generated. Wait one minute before trying again.'
+    : 'Could not create a route preview. Please try again.');
+  return (await response.json()) as { launchUrl: string };
+}
+
 export async function generateGuestSession(
   environment: MerchantAdminElementEnvironment,
 ) {

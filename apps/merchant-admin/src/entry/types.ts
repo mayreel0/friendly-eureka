@@ -14,6 +14,7 @@ export type PilotRouteRecordingScreenActionId =
   | 'activate-route'
   | 'pause-route'
   | 'save-directions'
+  | 'preview-route'
   | 'mark-qr-placed'
   | 'mark-staff-fallback-ready'
   | 'generate-guest-url'

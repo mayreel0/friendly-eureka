@@ -14,6 +14,7 @@ export function renderPilotRouteRecordingScreen(
     guestOrigin: string;
     busy: boolean;
     error: string;
+    previewUrl?: string;
     onReload?: () => void;
     draft: QrPlacementDraft;
     directionsDraft: DirectionsDraft;
@@ -31,6 +32,7 @@ export function renderPilotRouteRecordingScreen(
       @click=${() => options.onAction(id)}>${action.label}</button>` : nothing;
   };
   const launchUrl = toGuestLaunchUrl(view.launchUrl, options.guestOrigin);
+  const previewUrl = toGuestLaunchUrl(options.previewUrl, options.guestOrigin);
   const evidence = view.qrPlacementEvidence;
   return html`
     <section data-screen="pilot-route-recording" data-dashboard="merchant-pilot" data-stage=${view.stage}
@@ -46,6 +48,7 @@ export function renderPilotRouteRecordingScreen(
             <h2>Route status</h2>
             <p data-status=${view.stage}>${view.status}</p>
             <p>Route: ${view.routeId ?? 'none'}</p>
+            ${previewUrl ? html`<a data-preview-url href=${previewUrl} target="_blank" rel="noopener">Open route preview</a>` : nothing}
           </div>
           <div data-dashboard-panel="next-target">
             <h2>Next target</h2>
