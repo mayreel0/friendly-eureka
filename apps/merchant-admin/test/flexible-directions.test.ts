@@ -30,6 +30,18 @@ test('merchant adds and removes steps and guests follow the saved order', async 
       await page.getByLabel(`Step ${index + 1} distance (meters)`, { exact: true }).fill(String(index + 2));
       await page.getByLabel(`Step ${index + 1} landmark name`, { exact: true }).fill(landmarks[index]);
     }
+    await expect(page.getByRole('button', { name: 'Move step 1 up', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Move step 3 down', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Move step 2 up', exact: true }).click();
+    [instructions[0], instructions[1]] = [instructions[1], instructions[0]];
+    [landmarks[0], landmarks[1]] = [landmarks[1], landmarks[0]];
+    await expect(page.getByLabel('Step 1 instruction', { exact: true })).toHaveValue('Turn left at the lift.');
+    await expect(page.getByLabel('Step 1 landmark name', { exact: true })).toHaveValue('Lift lobby');
+    await expect(page.getByLabel('Step 1 distance (meters)', { exact: true })).toHaveValue('3');
+    await expect(page.getByLabel('Step 2 distance (meters)', { exact: true })).toHaveValue('2');
+    await page.getByRole('button', { name: 'Move step 1 down', exact: true }).click();
+    await expect(page.getByLabel('Step 1 landmark name', { exact: true })).toHaveValue('Reception');
+    await page.getByRole('button', { name: 'Move step 2 up', exact: true }).click();
     await page.getByRole('button', { name: 'Save route directions', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save route directions', exact: true })).toBeEnabled();
     await page.reload();
