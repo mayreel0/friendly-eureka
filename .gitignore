@@ -1,2 +1,6 @@
 node_modules/
 .lechigo/
+apps/android/.gradle/
+apps/android/.kotlin/
+apps/android/**/build/
+apps/android/local.properties
