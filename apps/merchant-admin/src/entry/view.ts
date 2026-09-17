@@ -77,6 +77,9 @@ export function renderPilotRouteRecordingScreen(
             ${launchUrl ? html`
               <lechigo-guest-qr .url=${launchUrl}></lechigo-guest-qr>
               <a data-launch-url="guest-webxr" href=${launchUrl}>${launchUrl}</a>
+              ${state.expiresAt && Number.isFinite(Date.parse(state.expiresAt)) ? html`
+                <p data-session-expires>Expires <time datetime=${state.expiresAt}>${new Date(state.expiresAt).toLocaleString()}</time></p>
+              ` : nothing}
             ` : html`<p data-launch-url="guest-webxr">Guest URL unavailable</p>`}
           </div>
           <div data-dashboard-panel="follow-ups">

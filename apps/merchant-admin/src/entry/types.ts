@@ -25,6 +25,7 @@ export type PilotRouteRecordingScreenState = {
   qrPlacementEvidence?: PilotQrPlacementEvidence;
   routeId?: string;
   launchUrl?: string;
+  expiresAt?: string;
 };
 
 export type PilotImplementationTargetId =
@@ -90,6 +91,7 @@ export type PilotRouteRecordingApiState = {
   stage: PilotRouteRecordingScreenStage;
   routeId?: string;
   launchUrl?: string;
+  expiresAt?: string;
 };
 
 export type PilotDevStateApiState = {
@@ -100,7 +102,7 @@ export type PilotDevStateApiState = {
 };
 
 export type MerchantAdminElementEnvironment = {
-  generateGuestUrl?: () => Promise<{ launchUrl: string }>;
+  generateGuestUrl?: () => Promise<{ launchUrl: string; expiresAt?: string }>;
   loadPilotState?: () => Promise<PilotDevStateApiState>;
   loadReadiness?: () => Promise<PilotReadinessApiState>;
   loadRouteRecording?: () => Promise<PilotRouteRecordingApiState>;

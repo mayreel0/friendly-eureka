@@ -1,5 +1,5 @@
 import { LitElement } from 'lit';
-import { generateGuestSession, loadPilotState, savePilotState } from './api.ts';
+import { generateGuestSession, GuestSessionError, loadPilotState, savePilotState } from './api.ts';
 import {
   applyLocalPilotRouteRecordingAction,
   completePilotFollowUp,
@@ -58,7 +58,7 @@ export function registerMerchantAdminElement(
         let next = this.state;
         if (id === 'generate-guest-url') {
           const session = await generateGuestSession(environment);
-          next = { ...next, stage: 'launch-ready', launchUrl: session.launchUrl };
+          next = { ...next, stage: 'launch-ready', launchUrl: session.launchUrl, expiresAt: session.expiresAt };
         } else if (id === 'record-follow-up') {
           next = recordPilotFollowUp(next, environment.now);
         } else if (id === 'complete-follow-up') {
@@ -70,8 +70,8 @@ export function registerMerchantAdminElement(
         }
         await savePilotState(environment, next);
         this.state = next;
-      } catch {
-        this.error = 'Could not save this action. Please try again.';
+      } catch (error) {
+        this.error = error instanceof GuestSessionError ? error.message : 'Could not save this action. Please try again.';
       } finally {
         this.busy = false;
         this.requestUpdate();

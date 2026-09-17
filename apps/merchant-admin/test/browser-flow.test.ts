@@ -99,6 +99,45 @@ test('failed saves preserve state and drafts, then allow retry', async () => {
   });
 });
 
+test('guest links and QR can be refreshed without losing the current link on failure', async () => {
+  await withDashboard(async (page, origin) => {
+    await page.goto(origin);
+    for (const action of ['record-route', 'mark-test-passed', 'activate-route', 'mark-qr-placed', 'mark-staff-fallback-ready', 'generate-guest-url']) {
+      await page.locator(`[data-action-id="${action}"]`).first().click();
+    }
+    const link = page.locator('a[data-launch-url]');
+    await expect(link).toBeVisible();
+    const original = await link.getAttribute('href');
+    const refresh = page.getByRole('button', { name: 'Refresh guest URL', exact: true }).first();
+    await expect(refresh).toBeEnabled();
+    await expect(page.locator('[data-session-expires]')).toBeVisible();
+    await page.route('**/api/dev/pilot-route-session', (route) => route.fulfill({ status: 429, json: { error: 'rate-limited' } }));
+    await refresh.click();
+    await expect(page.getByRole('alert')).toContainText('Too many links');
+    await expect(link).toHaveAttribute('href', original!);
+    await page.unroute('**/api/dev/pilot-route-session');
+    await page.route('**/api/dev/pilot-state', async (route) => {
+      if (route.request().method() === 'POST') await route.fulfill({ status: 500, json: { error: 'unavailable' } });
+      else await route.continue();
+    });
+    await refresh.click();
+    await expect(page.getByRole('alert')).toContainText('Could not save');
+    await expect(link).toHaveAttribute('href', original!);
+    await page.unroute('**/api/dev/pilot-state');
+    const qr = page.getByRole('img', { name: 'Guest route QR code' });
+    const oldImage = await qr.getAttribute('src');
+    await refresh.click();
+    await expect(link).not.toHaveAttribute('href', original!);
+    await expect(qr).not.toHaveAttribute('src', oldImage!);
+    const refreshed = await link.getAttribute('href');
+    const expires = await page.locator('[data-session-expires] time').getAttribute('datetime');
+    await page.reload();
+    await expect(link).toHaveAttribute('href', refreshed!);
+    await expect(page.locator('[data-session-expires] time')).toHaveAttribute('datetime', expires!);
+    await expect(refresh).toBeEnabled();
+  });
+});
+
 test('load failures block overwriting saved data and recover on reload', async () => {
   await withDashboard(async (page, origin) => {
     await page.route('**/api/dev/pilot-state', (route) => route.fulfill({ status: 503, body: 'Unavailable' }));

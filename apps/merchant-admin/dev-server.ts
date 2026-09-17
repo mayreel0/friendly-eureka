@@ -216,6 +216,7 @@ type PilotRouteRecordingState = {
   stage: PilotRouteRecordingScreenStage;
   routeId?: string;
   launchUrl?: string;
+  expiresAt?: string;
 };
 
 type PilotState = {
@@ -226,7 +227,7 @@ type PilotState = {
 
 function toPersistedPilotState(state: PilotState): PilotState {
   const withoutSession = <T extends PilotRouteRecordingState>(recording: T) => {
-    const { launchUrl: _launchUrl, ...saved } = recording;
+    const { launchUrl: _launchUrl, expiresAt: _expiresAt, ...saved } = recording;
     return { ...saved, stage: recording.stage === 'launch-ready' ? 'active' as const : recording.stage };
   };
   return {
@@ -353,6 +354,7 @@ function parsePilotRouteRecordingUpdate(value: unknown): PilotRouteRecordingStat
     stage,
     routeId: typeof value.routeId === 'string' ? value.routeId : undefined,
     launchUrl: typeof value.launchUrl === 'string' ? value.launchUrl : undefined,
+    expiresAt: typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt)) ? value.expiresAt : undefined,
   };
 }
 

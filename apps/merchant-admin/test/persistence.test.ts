@@ -17,7 +17,7 @@ async function start(stateFile: string) {
     close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
 }
 
-const recording = { stage: 'launch-ready', routeId: 'pilot-restroom-route', launchUrl: 'https://example.com/?token=DO-NOT-PERSIST' };
+const recording = { stage: 'launch-ready', routeId: 'pilot-restroom-route', launchUrl: 'https://example.com/?token=DO-NOT-PERSIST', expiresAt: '2026-09-17T10:20:00.000Z' };
 const readiness = { hasQrPlacement: true, hasStaffFallbackNote: true, qaResults: {},
   qrPlacementEvidence: { location: 'Entrance', orientation: 'Hallway', note: 'Local simulation', recordedAt: '2026-09-17T00:00:00Z' } };
 
@@ -38,12 +38,14 @@ test('pilot state survives server restart without persisting guest session URLs'
     assert.equal(live.recording.launchUrl, recording.launchUrl);
     const saved = await readFile(file, 'utf8');
     assert.equal(saved.includes('DO-NOT-PERSIST'), false);
+    assert.equal(JSON.parse(saved).state.recording.expiresAt, undefined);
     assert.equal((await stat(file)).mode & 0o777, 0o600);
     await running.close();
     running = await start(file);
     const restored = await (await fetch(`${running.origin}/api/dev/pilot-state`)).json();
     assert.equal(restored.recording.stage, 'active');
     assert.equal(restored.recording.launchUrl, undefined);
+    assert.equal(restored.recording.expiresAt, undefined);
     assert.deepEqual(restored.readiness, readiness);
     assert.equal(restored.followUps[0].id, 'follow-up-1');
     assert.equal(restored.nextTarget.id, 'generate-guest-url');
