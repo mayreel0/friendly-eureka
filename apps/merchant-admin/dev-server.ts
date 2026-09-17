@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { createPilotStateStore, PilotStateConflictError, PilotStateSaveError } from './pilot-state-store.ts';
 import { createPilotGuestApi } from './pilot-guest-api.ts';
+import { renderEntranceSign } from './entrance-sign.ts';
 import { hasCurrentPassingTest, InvalidRouteTestError, parseRouteTestInput, parseSavedRouteTest, type RouteTestResult } from './src/route-test-result.ts';
 import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
@@ -72,6 +73,19 @@ export function createMerchantAdminDevServer(
       let pilotState = stateStore.read();
       const revisionHeader = request.headers['x-pilot-revision'];
       const expectedRevision = typeof revisionHeader === 'string' ? revisionHeader : undefined;
+
+      if (requestUrl.pathname === '/print/entrance') {
+        if (request.method !== 'GET') {
+          writeJson(response, 405, { ok: false, error: 'method-not-allowed' });
+          return;
+        }
+        const entryUrl = entryUrlFor(pilotState.recording);
+        const html = await renderEntranceSign(entryUrl, pilotState.recording.routeVersion ?? 1);
+        response.writeHead(entryUrl ? 200 : 409, { 'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+        response.end(html);
+        return;
+      }
 
       if (requestUrl.pathname === '/src/entry/bootstrap.ts') {
         const bundle = await build({
