@@ -1,4 +1,4 @@
-export type PilotDirection = { instruction: string; distanceMeters: number };
+export type PilotDirection = { instruction: string; distanceMeters: number; landmarkLabel?: string };
 export type PilotDirections = PilotDirection[];
 export const maxPilotSteps = 20;
 
@@ -15,15 +15,19 @@ export function parsePilotDirections(value: unknown): PilotDirections {
   }
   return value.map((item: unknown) => {
     if (!item || typeof item !== 'object') throw new InvalidPilotDirectionsError('Invalid route segment.');
-    const { instruction, distanceMeters } = item as Partial<PilotDirection>;
+    const { instruction, distanceMeters, landmarkLabel } = item as Partial<PilotDirection>;
     if (typeof instruction !== 'string' || !instruction.trim() || instruction.trim().length > 500 ||
       typeof distanceMeters !== 'number' || !Number.isFinite(distanceMeters) || distanceMeters <= 0 || distanceMeters > 1000) {
       throw new InvalidPilotDirectionsError('Each instruction must contain 1-500 characters and each distance must be greater than 0 and at most 1000 meters.');
     }
-    return { instruction: instruction.trim(), distanceMeters };
+    if (landmarkLabel !== undefined && (typeof landmarkLabel !== 'string' || landmarkLabel.trim().length > 80)) {
+      throw new InvalidPilotDirectionsError('Landmark names must contain at most 80 characters.');
+    }
+    return { instruction: instruction.trim(), distanceMeters, ...(landmarkLabel?.trim() ? { landmarkLabel: landmarkLabel.trim() } : {}) };
   });
 }
 
 export function samePilotDirections(left = defaultPilotDirections, right = defaultPilotDirections) {
-  return left.length === right.length && left.every((step, index) => step.instruction === right[index].instruction && step.distanceMeters === right[index].distanceMeters);
+  return left.length === right.length && left.every((step, index) => step.instruction === right[index].instruction &&
+    step.distanceMeters === right[index].distanceMeters && (step.landmarkLabel ?? '') === (right[index].landmarkLabel ?? ''));
 }

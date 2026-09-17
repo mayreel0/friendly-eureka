@@ -57,7 +57,7 @@ export function registerMerchantAdminElement(
         directionsDraft: this.directionsDraft,
         onAddDirection: () => {
           if (this.busy || this.conflict || this.directionsDraft.length >= maxPilotSteps) return;
-          this.directionsDraft = [...this.directionsDraft, { instruction: '', distanceMeters: '' }];
+          this.directionsDraft = [...this.directionsDraft, { instruction: '', distanceMeters: '', landmarkLabel: '' }];
           this.directionsEdited = true;
           this.previewUrl = undefined;
           this.requestUpdate();
@@ -91,7 +91,7 @@ export function registerMerchantAdminElement(
       try {
         let next = this.state;
         if (id === 'mark-test-passed' || id === 'mark-test-failed') {
-          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ instruction: step.instruction, distanceMeters: Number(step.distanceMeters) })));
+          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ ...step, distanceMeters: Number(step.distanceMeters) })));
           if (!samePilotDirections(next.directions, draft)) throw new GuestSessionError('Save route directions before recording their test result.');
           const input = parseRouteTestInput({ result: id === 'mark-test-passed' ? 'pass' : 'fail', note: this.testNote, routeVersion: next.routeVersion ?? 1 });
           const saved = await recordRouteTest(input.result, input.note, input.routeVersion, this.revision);
@@ -100,13 +100,13 @@ export function registerMerchantAdminElement(
           this.previewUrl = undefined;
           return;
         } else if (id === 'preview-route') {
-          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ instruction: step.instruction, distanceMeters: Number(step.distanceMeters) })));
+          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ ...step, distanceMeters: Number(step.distanceMeters) })));
           if (!samePilotDirections(this.state.directions, draft)) throw new GuestSessionError('Save route directions before previewing them.');
           this.previewUrl = (await generateRoutePreview(this.revision)).launchUrl;
           return;
         } else if (id === 'save-directions') {
           const directions = parsePilotDirections(this.directionsDraft.map((step) => ({
-            instruction: step.instruction, distanceMeters: Number(step.distanceMeters),
+            ...step, distanceMeters: Number(step.distanceMeters),
           })));
           if (samePilotDirections(next.directions, directions)) return;
           next = { ...next, directions, routeVersion: (next.routeVersion ?? 1) + 1,

@@ -183,7 +183,8 @@ function recordPilotRouteDraft(
   // These are simulated anchors for manual guidance, not recorded AR coordinates.
   const anchors: Route['anchors'] = Array.from({ length: directions.length + 1 }, (_, index) => ({
     id: index === 0 ? 'entrance' : index === directions.length ? 'restroom' : directions.length === 2 ? 'hallway' : `landmark-${index}`,
-    label: index === 0 ? 'Entrance' : index === directions.length ? 'Restroom' : directions.length === 2 ? 'Main Hallway' : `Landmark ${index}`,
+    label: index === 0 ? 'Entrance' : directions[index - 1].landmarkLabel ??
+      (index === directions.length ? 'Restroom' : directions.length === 2 ? 'Main Hallway' : `Landmark ${index}`),
     type: index === 0 ? 'start' : index === directions.length ? 'destination' : 'landmark',
     floor: 1,
     position: { x: index * 4, y: 0, z: index === 0 ? 0 : 1 },
@@ -205,7 +206,8 @@ function recordPilotRouteDraft(
           id: `segment-${index + 1}`,
           fromAnchorId: anchors[index].id,
           toAnchorId: anchors[index + 1].id,
-          ...step,
+          instruction: step.instruction,
+          distanceMeters: step.distanceMeters,
         })),
       },
     }),

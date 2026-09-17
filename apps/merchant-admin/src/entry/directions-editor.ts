@@ -2,7 +2,7 @@ import { html } from 'lit';
 import { defaultPilotDirections, maxPilotSteps, type PilotDirections } from '../pilot-directions.ts';
 
 export function createDirectionsDraft(directions: PilotDirections = defaultPilotDirections) {
-  return directions.map((step) => ({ instruction: step.instruction, distanceMeters: String(step.distanceMeters) }));
+  return directions.map((step) => ({ instruction: step.instruction, distanceMeters: String(step.distanceMeters), landmarkLabel: step.landmarkLabel ?? '' }));
 }
 
 export type DirectionsDraft = ReturnType<typeof createDirectionsDraft>;
@@ -10,7 +10,7 @@ export type DirectionsDraft = ReturnType<typeof createDirectionsDraft>;
 export function renderDirectionsEditor(options: {
   draft: DirectionsDraft;
   disabled: boolean;
-  onChange: (index: number, field: 'instruction' | 'distanceMeters', value: string) => void;
+  onChange: (index: number, field: keyof DirectionsDraft[number], value: string) => void;
   onSave: () => void;
   onAdd?: () => void;
   onRemove?: (index: number) => void;
@@ -20,7 +20,9 @@ export function renderDirectionsEditor(options: {
     <form @submit=${(event: SubmitEvent) => { event.preventDefault(); options.onSave(); }}>
       <fieldset ?disabled=${options.disabled}>
         ${options.draft.map((step, index) => html`<div>
-          <h3>Step ${index + 1}${index === options.draft.length - 1 ? ': Restroom' : ''}</h3>
+          <h3>Step ${index + 1}${index === options.draft.length - 1 ? ': Destination' : ''}</h3>
+          <label>Step ${index + 1} landmark name<input maxlength="80" .value=${step.landmarkLabel}
+            @input=${(event: Event) => options.onChange(index, 'landmarkLabel', (event.target as HTMLInputElement).value)}></label>
           <label>Step ${index + 1} instruction<textarea required maxlength="500" .value=${step.instruction}
             @input=${(event: Event) => options.onChange(index, 'instruction', (event.target as HTMLTextAreaElement).value)}></textarea></label>
           <label>Step ${index + 1} distance (meters)<input type="number" required min="0.01" max="1000" step="any" .value=${step.distanceMeters}
