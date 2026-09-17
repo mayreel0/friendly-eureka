@@ -13,6 +13,8 @@ import { merchantStyles } from './styles.ts';
 import { createDirectionsDraft, parseDirectionsDraft } from './directions-editor.ts';
 import { InvalidPilotDirectionsError, maxPilotSteps, samePilotDirections } from '../pilot-directions.ts';
 import { InvalidRouteTestError, parseRouteTestInput } from '../route-test-result.ts';
+import { importRecording, readRecordingFile } from './recording-import.ts';
+import type { AndroidRecording } from '../../../../packages/route-core/src/recording.ts';
 
 export type * from './types.ts';
 export * from './state.ts';
@@ -39,6 +41,7 @@ export function registerMerchantAdminElement(
     private directionsEdited = false;
     private previewUrl?: string;
     private testNote = '';
+    private pendingRecording?: AndroidRecording;
 
     protected firstUpdated() {
       void this.loadPersistedState();
@@ -55,6 +58,12 @@ export function registerMerchantAdminElement(
         onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
         directionsDraft: this.directionsDraft,
+        recordingImport: {
+          busy: this.busy || this.conflict, pending: this.pendingRecording,
+          saved: this.state.importedRecording, routeVersion: this.state.routeVersion,
+          onFile: (file) => { void this.selectRecording(file); },
+          onImport: () => { void this.applyRecordingImport(); },
+        },
         onMoveDirection: (index, offset) => {
           const target = index + offset;
           if (this.busy || this.conflict || target < 0 || target >= this.directionsDraft.length) return;
@@ -93,6 +102,41 @@ export function registerMerchantAdminElement(
       });
     }
 
+    private async selectRecording(file?: File) {
+      if (this.busy || this.conflict) return;
+      this.pendingRecording = undefined;
+      this.error = '';
+      if (!file) { this.requestUpdate(); return; }
+      this.busy = true;
+      this.requestUpdate();
+      try { this.pendingRecording = await readRecordingFile(file); }
+      catch (error) { this.error = error instanceof Error ? error.message : 'Could not read recording.'; }
+      finally { this.busy = false; this.requestUpdate(); }
+    }
+
+    private async applyRecordingImport() {
+      if (this.busy || this.conflict || !this.pendingRecording) return;
+      if (this.directionsEdited) {
+        this.error = 'Save your route direction edits before importing a recording.';
+        this.requestUpdate(); return;
+      }
+      if (this.state.stage !== 'empty' && !confirm('Replace this route with a new draft? Existing guest links will stop working and a new walkthrough test is required.')) return;
+      this.busy = true; this.error = ''; this.requestUpdate();
+      try {
+        const saved = await importRecording(this.pendingRecording, this.revision);
+        this.state = { ...this.state, launchUrl: undefined, expiresAt: undefined, entryUrl: undefined, ...saved.recording };
+        this.revision = saved.revision;
+        this.directionsDraft = createDirectionsDraft(saved.recording.directions);
+        this.directionsEdited = false;
+        this.previewUrl = undefined;
+        this.testNote = '';
+        this.pendingRecording = undefined;
+      } catch (error) {
+        this.conflict = error instanceof PilotStateConflictError;
+        this.error = error instanceof GuestSessionError || error instanceof PilotStateConflictError ? error.message : 'Could not import this recording. Please try again.';
+      } finally { this.busy = false; this.requestUpdate(); }
+    }
+
     private async applyAction(id: PilotRouteRecordingScreenActionId, followUpId?: string) {
       if (this.busy || this.conflict) return;
       this.busy = true;
@@ -116,7 +160,10 @@ export function registerMerchantAdminElement(
           return;
         } else if (id === 'save-directions') {
           const directions = parseDirectionsDraft(this.directionsDraft);
-          if (samePilotDirections(next.directions, directions)) return;
+          if (samePilotDirections(next.directions, directions)) {
+            this.directionsEdited = false;
+            return;
+          }
           next = { ...next, directions, routeVersion: (next.routeVersion ?? 1) + 1,
             routeId: 'pilot-restroom-route', stage: 'recorded', launchUrl: undefined, expiresAt: undefined };
         } else if (id === 'generate-guest-url') {

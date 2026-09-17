@@ -3,6 +3,7 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { repeat } from 'lit/directives/repeat.js';
 import './guest-qr.ts';
 import { renderDirectionsEditor, type DirectionsDraft } from './directions-editor.ts';
+import { renderRecordingImport } from './recording-import.ts';
 import { createPilotRouteRecordingView } from './state.ts';
 import type { PilotRouteRecordingScreenActionId, PilotRouteRecordingScreenState } from './types.ts';
 
@@ -20,6 +21,7 @@ export function renderPilotRouteRecordingScreen(
     onReload?: () => void;
     draft: QrPlacementDraft;
     directionsDraft: DirectionsDraft;
+    recordingImport?: Parameters<typeof renderRecordingImport>[0];
     onDirectionsDraft: (index: number, field: keyof DirectionsDraft[number], value: string) => void;
     onAddDirection?: () => void;
     onRemoveDirection?: (index: number) => void;
@@ -81,6 +83,7 @@ export function renderPilotRouteRecordingScreen(
                 ${item.resultNote ? html`<span data-qa-note=${item.id}>${item.resultNote.summary} at ${item.resultNote.recordedAt}</span>` : nothing}
               </li>`)}</ol>
           </div>
+          ${options.recordingImport ? renderRecordingImport(options.recordingImport) : nothing}
           ${renderDirectionsEditor({ draft: options.directionsDraft, disabled: options.busy || state.stage === 'empty',
             onChange: options.onDirectionsDraft, onAdd: options.onAddDirection, onRemove: options.onRemoveDirection,
             onMove: options.onMoveDirection,
