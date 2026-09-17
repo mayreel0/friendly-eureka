@@ -126,8 +126,8 @@ export function createPilotRouteRecordingView(
       },
       {
         id: 'generate-guest-url',
-        label: 'Generate guest URL',
-        enabled: state.stage === 'active' && isReadyToLaunch,
+        label: state.stage === 'launch-ready' ? 'Refresh guest URL' : 'Generate guest URL',
+        enabled: ['active', 'launch-ready'].includes(state.stage) && isReadyToLaunch,
       },
       {
         id: 'mark-qr-placed',
@@ -370,6 +370,7 @@ export function toPilotRouteRecordingApiState(
     stage: state.stage,
     routeId: state.routeId,
     launchUrl: state.launchUrl,
+    expiresAt: state.expiresAt,
   };
 }
 

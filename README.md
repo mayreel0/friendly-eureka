@@ -40,6 +40,8 @@ Use `npm run dev:pilot` for the connected administrator-to-guest flow. Record th
 
 This is a local prototype, not a production publishing API: route geometry is still seeded, test success is manually declared, and developer state endpoints are unauthenticated. Do not expose the merchant dev server publicly or treat its state endpoints as authorization boundaries.
 
+The merchant dashboard shows each guest link's expiry time. Use **Refresh guest URL** to issue a new link and downloadable QR without repeating setup. Failed refreshes preserve the displayed link; rate-limited requests can be retried after a minute. Session URLs and expiry metadata are not written to the saved state file.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

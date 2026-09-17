@@ -12,6 +12,8 @@ import {
   toPilotRouteRecordingApiState,
 } from './state.ts';
 
+export class GuestSessionError extends Error {}
+
 export async function generateGuestSession(
   environment: MerchantAdminElementEnvironment,
 ) {
@@ -22,10 +24,12 @@ export async function generateGuestSession(
   const response = await fetch('/api/dev/pilot-route-session');
 
   if (!response.ok) {
-    throw new Error('Failed to generate guest URL');
+    throw new GuestSessionError(response.status === 429
+      ? 'Too many links generated. Wait one minute before trying again.'
+      : 'Could not generate a guest link. Please try again.');
   }
 
-  return (await response.json()) as { launchUrl: string };
+  return (await response.json()) as { launchUrl: string; expiresAt?: string };
 }
 
 export async function loadPilotState(
