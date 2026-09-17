@@ -36,6 +36,10 @@ Merchant browser tests use real Chromium, including action persistence and error
 
 Set `PILOT_STATE_FILE` to use a different local state file. Run only one merchant server per file. For a fresh pilot, stop the server and move the state file aside before restarting. If saved JSON is corrupt, startup fails without overwriting it; preserve a backup before repairing it.
 
+Use `npm run dev:pilot` for the connected administrator-to-guest flow. Record the example route, mark the simulated test passed, activate it, then generate a guest link. Both servers share the saved publishing state: inactive routes cannot issue sessions or serve guidance. Re-recording revokes existing sessions; restarting requires generating a new link. Sessions expire after 20 minutes and issuance is limited to five per minute in this local pilot. The standalone guest command remains an independently seeded demo and does not accept links from a separately started merchant server.
+
+This is a local prototype, not a production publishing API: route geometry is still seeded, test success is manually declared, and developer state endpoints are unauthenticated. Do not expose the merchant dev server publicly or treat its state endpoints as authorization boundaries.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

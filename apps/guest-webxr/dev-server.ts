@@ -7,9 +7,9 @@ import { build } from 'esbuild';
 import {
   createApiContext,
   fetchGuestRoute,
-  type ApiContext,
 } from '../api/src/server.ts';
 import { recordPilotRestroomRoute } from '../merchant-admin/src/index.ts';
+import type { PilotGuestApi } from '../merchant-admin/pilot-guest-api.ts';
 
 const currentFile = fileURLToPath(import.meta.url);
 const appRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -24,11 +24,11 @@ const contentTypes = new Map([
 ]);
 
 export function createGuestWebxrDevServer(
-  options: { appRoot?: string; repoRoot?: string } = {},
+  options: { appRoot?: string; repoRoot?: string; guestApi?: PilotGuestApi } = {},
 ) {
   const resolvedAppRoot = resolve(options.appRoot ?? appRoot);
   const resolvedRepoRoot = resolve(options.repoRoot ?? repoRoot);
-  const guestApi = createSeededPilotGuestApi();
+  const guestApi = options.guestApi ?? createSeededPilotGuestApi();
 
   return createServer(async (request, response) => {
     try {
@@ -80,32 +80,23 @@ export function createGuestWebxrDevServer(
 }
 
 function handleApiRequest(input: {
-  api: SeededPilotGuestApi;
+  api: PilotGuestApi;
   requestUrl: URL;
   response: {
     writeHead(statusCode: number, headers?: Record<string, string>): void;
     end(chunk?: string): void;
   };
 }) {
-  if (input.requestUrl.pathname === '/api/dev/guest-session') {
-    const guestUrl = `/?token=${encodeURIComponent(input.api.token)}`;
-
-    writeJson(input.response, 200, {
-      ok: true,
-      token: input.api.token,
-      expiresAt: input.api.expiresAt,
-      url: guestUrl,
-      copyUrl: guestUrl,
-    });
-    return;
-  }
-
-  if (input.requestUrl.pathname === '/api/dev/guest-session-url') {
-    writeText(
-      input.response,
-      200,
-      `/?token=${encodeURIComponent(input.api.token)}`,
-    );
+  if (input.requestUrl.pathname === '/api/dev/guest-session' ||
+    input.requestUrl.pathname === '/api/dev/guest-session-url') {
+    const session = input.api.issueSession();
+    if (!session.ok) {
+      writeJson(input.response, session.status, session);
+      return;
+    }
+    const guestUrl = `/?token=${encodeURIComponent(session.token)}`;
+    if (input.requestUrl.pathname.endsWith('-url')) writeText(input.response, 200, guestUrl);
+    else writeJson(input.response, 200, { ...session, url: guestUrl, copyUrl: guestUrl });
     return;
   }
 
@@ -121,7 +112,7 @@ function handleApiRequest(input: {
       return;
     }
 
-    const result = fetchGuestRoute(input.api.context, { token });
+    const result = input.api.fetchRoute(token);
     writeJson(input.response, result.ok ? 200 : result.status, result);
     return;
   }
@@ -133,13 +124,7 @@ function handleApiRequest(input: {
   });
 }
 
-type SeededPilotGuestApi = {
-  context: ApiContext;
-  token: string;
-  expiresAt: string;
-};
-
-function createSeededPilotGuestApi(): SeededPilotGuestApi {
+function createSeededPilotGuestApi(): PilotGuestApi {
   const context = createApiContext({
     signingSecret: 'local-dev-pilot-secret',
     now: () => '2026-09-01T10:00:00.000Z',
@@ -147,9 +132,8 @@ function createSeededPilotGuestApi(): SeededPilotGuestApi {
   const recording = recordPilotRestroomRoute(context);
 
   return {
-    context,
-    token: recording.token,
-    expiresAt: recording.expiresAt,
+    issueSession: () => ({ ok: true, token: recording.token, expiresAt: recording.expiresAt }),
+    fetchRoute: (token) => fetchGuestRoute(context, { token }),
   };
 }
 

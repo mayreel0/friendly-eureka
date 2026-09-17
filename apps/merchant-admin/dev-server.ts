@@ -5,8 +5,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { createPilotStateStore, PilotStateSaveError } from './pilot-state-store.ts';
-import { createApiContext } from '../api/src/server.ts';
-import { recordPilotRestroomRoute } from './src/index.ts';
+import { createPilotGuestApi } from './pilot-guest-api.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
 import type {
   PilotFollowUpAction,
@@ -42,8 +41,10 @@ export function createMerchantAdminDevServer(
     parse: parseSavedPilotState,
     forDisk: toPersistedPilotState,
   });
+  const guestApi = createPilotGuestApi();
+  guestApi.setRecording(stateStore.read().recording);
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
       let pilotState = stateStore.read();
@@ -77,6 +78,7 @@ export function createMerchantAdminDevServer(
         if (request.method === 'POST') {
           const update = parsePilotStateUpdate(await readJson(request));
           pilotState = await stateStore.update(() => update);
+          guestApi.setRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
@@ -107,6 +109,7 @@ export function createMerchantAdminDevServer(
         if (request.method === 'POST') {
           const recording = parsePilotRouteRecordingUpdate(await readJson(request));
           pilotState = await stateStore.update((previous) => ({ ...previous, recording }));
+          guestApi.setRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
             ...pilotState.recording,
@@ -149,22 +152,16 @@ export function createMerchantAdminDevServer(
         return;
       }
 
-      if (requestUrl.pathname === '/api/dev/pilot-route-session') {
-        const session = createPilotRouteSessionPayload(guestOrigin);
-
-        writeJson(response, 200, {
-          ok: true,
-          ...session,
-        });
-        return;
-      }
-
-      if (requestUrl.pathname === '/api/dev/pilot-route-session-url') {
-        writeText(
-          response,
-          200,
-          createPilotRouteSessionPayload(guestOrigin).launchUrl,
-        );
+      if (requestUrl.pathname === '/api/dev/pilot-route-session' ||
+        requestUrl.pathname === '/api/dev/pilot-route-session-url') {
+        const session = guestApi.issueSession();
+        if (!session.ok) {
+          writeJson(response, session.status, session);
+          return;
+        }
+        const launchUrl = new URL(`/?token=${encodeURIComponent(session.token)}`, guestOrigin).toString();
+        if (requestUrl.pathname.endsWith('-url')) writeText(response, 200, launchUrl);
+        else writeJson(response, 200, { ...session, launchUrl });
         return;
       }
 
@@ -196,6 +193,7 @@ export function createMerchantAdminDevServer(
       response.end('Not found');
     }
   });
+  return Object.assign(server, { guestApi });
 }
 
 export function resolveGuestOrigin(value: string) {
@@ -205,21 +203,6 @@ export function resolveGuestOrigin(value: string) {
     throw new Error('GUEST_ORIGIN must be an HTTP(S) origin without credentials, path, query, or fragment');
   }
   return url.origin;
-}
-
-function createPilotRouteSessionPayload(guestOrigin: string) {
-  const recording = recordPilotRestroomRoute(
-    createApiContext({
-      signingSecret: 'local-dev-pilot-secret',
-      now: () => '2026-09-01T10:00:00.000Z',
-    }),
-  );
-
-  return {
-    token: recording.token,
-    expiresAt: recording.expiresAt,
-    launchUrl: new URL(recording.launchUrl, guestOrigin).toString(),
-  };
 }
 
 type PilotReadinessState = {
