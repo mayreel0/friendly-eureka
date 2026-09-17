@@ -44,6 +44,8 @@ The merchant dashboard shows each guest link's expiry time. Use **Refresh guest 
 
 Use **Pause guest access** to stop new session issuance and route requests. Pausing preserves setup and evidence, clears the dashboard's guest link, and survives restart. **Resume guest access** requires generating a new link; old tokens remain invalid. Directions already loaded on a phone remain in memory for offline use, so pausing is not a remote wipe or an emergency notification system.
 
+Dashboard saves include the revision loaded by that tab. If another tab saves first, or the server restarts, the stale save is rejected. **Load latest state** refreshes the dashboard without discarding unsaved QR placement fields; then explicitly repeat the intended action. Legacy developer API clients without a revision header remain unconditional writers. This is single-process conflict protection, not multi-server coordination.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

@@ -20,7 +20,8 @@ async function withDashboard(
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
     browser = await chromium.launch();
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
     page.setDefaultTimeout(5000);
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -148,6 +149,31 @@ test('load failures block overwriting saved data and recover on reload', async (
     await page.reload();
     await expect(page.locator('[data-action-id="record-route"]').first()).toBeEnabled();
     await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+});
+
+test('a stale administrator tab cannot overwrite paused guest access', async () => {
+  await withDashboard(async (page, origin) => {
+    await page.goto(origin);
+    for (const action of ['record-route', 'mark-test-passed', 'activate-route']) {
+      await page.locator(`[data-action-id="${action}"]`).first().click();
+    }
+    const other = await page.context().newPage();
+    await other.goto(origin);
+    await expect(other.locator('[data-screen]')).toHaveAttribute('data-stage', 'active');
+    await other.getByRole('textbox', { name: 'Location', exact: true }).fill('Unsaved location');
+    await page.getByRole('button', { name: 'Pause guest access', exact: true }).click();
+    await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'paused');
+    await other.getByRole('button', { name: 'Record follow-up', exact: true }).click();
+    await expect(other.getByRole('alert')).toContainText('changed in another tab');
+    await expect(other.getByRole('textbox', { name: 'Location', exact: true })).toHaveValue('Unsaved location');
+    assert.equal((await (await page.request.get(`${origin}/api/dev/pilot-state`)).json()).recording.stage, 'paused');
+    await other.getByRole('button', { name: 'Load latest state', exact: true }).click();
+    await expect(other.locator('[data-screen]')).toHaveAttribute('data-stage', 'paused');
+    await expect(other.getByRole('textbox', { name: 'Location', exact: true })).toHaveValue('Unsaved location');
+    await other.getByRole('button', { name: 'Resume guest access', exact: true }).first().click();
+    await expect(other.locator('[data-screen]')).toHaveAttribute('data-stage', 'active');
+    await other.close();
   });
 });
 

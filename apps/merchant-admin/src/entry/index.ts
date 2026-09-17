@@ -1,5 +1,5 @@
 import { LitElement } from 'lit';
-import { generateGuestSession, GuestSessionError, loadPilotState, savePilotState } from './api.ts';
+import { generateGuestSession, GuestSessionError, loadPilotState, PilotStateConflictError, savePilotState } from './api.ts';
 import {
   applyLocalPilotRouteRecordingAction,
   completePilotFollowUp,
@@ -30,6 +30,8 @@ export function registerMerchantAdminElement(
     private draftEdited = false;
     private busy = true;
     private error = '';
+    private revision?: string;
+    private conflict = false;
 
     protected firstUpdated() {
       void this.loadPersistedState();
@@ -38,8 +40,9 @@ export function registerMerchantAdminElement(
     protected render() {
       return renderPilotRouteRecordingScreen(this.state, {
         guestOrigin: environment.guestOrigin ?? 'http://127.0.0.1:4173',
-        busy: this.busy,
+        busy: this.busy || this.conflict,
         error: this.error,
+        onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
         onDraft: (field, value) => {
           this.draftEdited = true;
@@ -50,7 +53,7 @@ export function registerMerchantAdminElement(
     }
 
     private async applyAction(id: PilotRouteRecordingScreenActionId, followUpId?: string) {
-      if (this.busy) return;
+      if (this.busy || this.conflict) return;
       this.busy = true;
       this.error = '';
       this.requestUpdate();
@@ -68,10 +71,12 @@ export function registerMerchantAdminElement(
         } else {
           next = applyLocalPilotRouteRecordingAction(next, id, environment.now);
         }
-        await savePilotState(environment, next);
+        this.revision = await savePilotState(environment, next, this.revision);
         this.state = next;
       } catch (error) {
-        this.error = error instanceof GuestSessionError ? error.message : 'Could not save this action. Please try again.';
+        this.conflict = error instanceof PilotStateConflictError;
+        this.error = error instanceof GuestSessionError || error instanceof PilotStateConflictError
+          ? error.message : 'Could not save this action. Please try again.';
       } finally {
         this.busy = false;
         this.requestUpdate();
@@ -79,11 +84,14 @@ export function registerMerchantAdminElement(
     }
 
     private async loadPersistedState() {
+      this.busy = true;
+      this.requestUpdate();
       try {
         const pilot = await loadPilotState(environment);
+        this.revision = pilot.revision;
         const evidence = pilot.readiness.qrPlacementEvidence;
         this.state = {
-          ...this.state,
+          ...createInitialPilotRouteRecordingScreenState(),
           ...pilot.recording,
           ...pilot.readiness,
           followUps: pilot.followUps ?? [],
@@ -102,8 +110,11 @@ export function registerMerchantAdminElement(
           this.draft = { location: evidence.location, orientation: evidence.orientation, note: evidence.note };
         }
         this.busy = false;
+        this.conflict = false;
+        this.error = '';
       } catch {
         this.error = 'Could not load saved state. Reload to try again.';
+        if (this.conflict) this.busy = false;
       } finally {
         this.requestUpdate();
       }

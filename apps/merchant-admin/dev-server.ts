@@ -4,7 +4,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { createPilotStateStore, PilotStateSaveError } from './pilot-state-store.ts';
+import { createPilotStateStore, PilotStateConflictError, PilotStateSaveError } from './pilot-state-store.ts';
 import { createPilotGuestApi } from './pilot-guest-api.ts';
 import { deriveNextPilotImplementationTarget } from './src/entry/state.ts';
 import type {
@@ -48,6 +48,8 @@ export function createMerchantAdminDevServer(
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://localhost');
       let pilotState = stateStore.read();
+      const revisionHeader = request.headers['x-pilot-revision'];
+      const expectedRevision = typeof revisionHeader === 'string' ? revisionHeader : undefined;
 
       if (requestUrl.pathname === '/src/entry/bootstrap.ts') {
         const bundle = await build({
@@ -68,6 +70,7 @@ export function createMerchantAdminDevServer(
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
+            revision: stateStore.revision(),
             nextTarget: deriveNextPilotImplementationTarget(
               toPilotRouteRecordingScreenState(pilotState),
             ),
@@ -77,11 +80,12 @@ export function createMerchantAdminDevServer(
 
         if (request.method === 'POST') {
           const update = parsePilotStateUpdate(await readJson(request));
-          pilotState = await stateStore.update(() => update);
+          pilotState = await stateStore.update(() => update, expectedRevision);
           guestApi.setRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
             ...pilotState,
+            revision: stateStore.revision(),
             nextTarget: deriveNextPilotImplementationTarget(
               toPilotRouteRecordingScreenState(pilotState),
             ),
@@ -108,7 +112,7 @@ export function createMerchantAdminDevServer(
 
         if (request.method === 'POST') {
           const recording = parsePilotRouteRecordingUpdate(await readJson(request));
-          pilotState = await stateStore.update((previous) => ({ ...previous, recording }));
+          pilotState = await stateStore.update((previous) => ({ ...previous, recording }), expectedRevision);
           guestApi.setRecording(pilotState.recording);
           writeJson(response, 200, {
             ok: true,
@@ -136,7 +140,7 @@ export function createMerchantAdminDevServer(
 
         if (request.method === 'POST') {
           const readiness = parsePilotReadinessUpdate(await readJson(request));
-          pilotState = await stateStore.update((previous) => ({ ...previous, readiness }));
+          pilotState = await stateStore.update((previous) => ({ ...previous, readiness }), expectedRevision);
           writeJson(response, 200, {
             ok: true,
             ...pilotState.readiness,
@@ -183,6 +187,10 @@ export function createMerchantAdminDevServer(
       });
       response.end(body);
     } catch (error) {
+      if (error instanceof PilotStateConflictError) {
+        writeJson(response, 409, { ok: false, error: 'pilot-state-conflict' });
+        return;
+      }
       if (error instanceof PilotStateSaveError) {
         writeJson(response, 500, { ok: false, error: 'pilot-state-save-failed' });
         return;

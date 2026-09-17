@@ -97,6 +97,7 @@ export type PilotRouteRecordingApiState = {
 };
 
 export type PilotDevStateApiState = {
+  revision?: string;
   recording: PilotRouteRecordingApiState;
   readiness: PilotReadinessApiState;
   followUps?: PilotFollowUpAction[];

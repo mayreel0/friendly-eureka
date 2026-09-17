@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export class PilotStateSaveError extends Error {}
+export class PilotStateConflictError extends Error {}
 
 export function createPilotStateStore<T>(options: {
   file?: string;
@@ -25,10 +26,15 @@ export function createPilotStateStore<T>(options: {
   }
 
   let pending = Promise.resolve();
+  let revision = randomUUID();
   return {
     read: () => state,
-    update(change: (previous: T) => T): Promise<T> {
+    revision: () => revision,
+    update(change: (previous: T) => T, expectedRevision?: string): Promise<T> {
       const operation = pending.then(async () => {
+        if (expectedRevision !== undefined && expectedRevision !== revision) {
+          throw new PilotStateConflictError('pilot-state-conflict');
+        }
         const next = change(state);
         if (options.file) {
           const temporary = `${options.file}.${randomUUID()}.tmp`;
@@ -43,6 +49,7 @@ export function createPilotStateStore<T>(options: {
           }
         }
         state = next;
+        revision = randomUUID();
         return state;
       });
       pending = operation.then(() => undefined, () => undefined);

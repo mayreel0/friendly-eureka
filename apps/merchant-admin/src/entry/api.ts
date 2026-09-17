@@ -13,6 +13,7 @@ import {
 } from './state.ts';
 
 export class GuestSessionError extends Error {}
+export class PilotStateConflictError extends Error {}
 
 export async function generateGuestSession(
   environment: MerchantAdminElementEnvironment,
@@ -62,6 +63,7 @@ export async function loadPilotState(
 export async function savePilotState(
   environment: MerchantAdminElementEnvironment,
   state: PilotRouteRecordingScreenState,
+  revision?: string,
 ) {
   const pilotState = {
     recording: toPilotRouteRecordingApiState(state),
@@ -76,10 +78,12 @@ export async function savePilotState(
 
   const response = await fetch('/api/dev/pilot-state', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(revision ? { 'x-pilot-revision': revision } : {}) },
     body: JSON.stringify(pilotState),
   });
+  if (response.status === 409) throw new PilotStateConflictError('Saved state changed in another tab or after a server restart. Load the latest state before continuing.');
   if (!response.ok) throw new Error('Failed to save pilot state');
+  return ((await response.json()) as PilotDevStateApiState).revision;
 }
 
 export async function savePilotReadinessState(
