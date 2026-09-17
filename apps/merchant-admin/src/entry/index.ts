@@ -10,8 +10,8 @@ import {
 import type { MerchantAdminElementEnvironment, PilotRouteRecordingScreenActionId } from './types.ts';
 import { renderPilotRouteRecordingScreen, type QrPlacementDraft } from './view.ts';
 import { merchantStyles } from './styles.ts';
-import { createDirectionsDraft } from './directions-editor.ts';
-import { InvalidPilotDirectionsError, maxPilotSteps, parsePilotDirections, samePilotDirections } from '../pilot-directions.ts';
+import { createDirectionsDraft, parseDirectionsDraft } from './directions-editor.ts';
+import { InvalidPilotDirectionsError, maxPilotSteps, samePilotDirections } from '../pilot-directions.ts';
 import { InvalidRouteTestError, parseRouteTestInput } from '../route-test-result.ts';
 
 export type * from './types.ts';
@@ -67,7 +67,7 @@ export function registerMerchantAdminElement(
         },
         onAddDirection: () => {
           if (this.busy || this.conflict || this.directionsDraft.length >= maxPilotSteps) return;
-          this.directionsDraft = [...this.directionsDraft, { instruction: '', distanceMeters: '', landmarkLabel: '' }];
+          this.directionsDraft = [...this.directionsDraft, { instruction: '', distanceMeters: '', landmarkLabel: '', movement: 'level', fromFloor: '1', toFloor: '2' }];
           this.directionsEdited = true;
           this.previewUrl = undefined;
           this.requestUpdate();
@@ -101,7 +101,7 @@ export function registerMerchantAdminElement(
       try {
         let next = this.state;
         if (id === 'mark-test-passed' || id === 'mark-test-failed') {
-          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ ...step, distanceMeters: Number(step.distanceMeters) })));
+          const draft = parseDirectionsDraft(this.directionsDraft);
           if (!samePilotDirections(next.directions, draft)) throw new GuestSessionError('Save route directions before recording their test result.');
           const input = parseRouteTestInput({ result: id === 'mark-test-passed' ? 'pass' : 'fail', note: this.testNote, routeVersion: next.routeVersion ?? 1 });
           const saved = await recordRouteTest(input.result, input.note, input.routeVersion, this.revision);
@@ -110,14 +110,12 @@ export function registerMerchantAdminElement(
           this.previewUrl = undefined;
           return;
         } else if (id === 'preview-route') {
-          const draft = parsePilotDirections(this.directionsDraft.map((step) => ({ ...step, distanceMeters: Number(step.distanceMeters) })));
+          const draft = parseDirectionsDraft(this.directionsDraft);
           if (!samePilotDirections(this.state.directions, draft)) throw new GuestSessionError('Save route directions before previewing them.');
           this.previewUrl = (await generateRoutePreview(this.revision)).launchUrl;
           return;
         } else if (id === 'save-directions') {
-          const directions = parsePilotDirections(this.directionsDraft.map((step) => ({
-            ...step, distanceMeters: Number(step.distanceMeters),
-          })));
+          const directions = parseDirectionsDraft(this.directionsDraft);
           if (samePilotDirections(next.directions, directions)) return;
           next = { ...next, directions, routeVersion: (next.routeVersion ?? 1) + 1,
             routeId: 'pilot-restroom-route', stage: 'recorded', launchUrl: undefined, expiresAt: undefined };

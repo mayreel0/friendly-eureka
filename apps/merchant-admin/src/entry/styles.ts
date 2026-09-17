@@ -105,6 +105,7 @@ export const merchantStyles = css`
     }
 
     input,
+    select,
     textarea {
       box-sizing: border-box;
       width: 100%;
