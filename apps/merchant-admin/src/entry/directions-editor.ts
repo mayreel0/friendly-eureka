@@ -14,6 +14,7 @@ export function renderDirectionsEditor(options: {
   onSave: () => void;
   onAdd?: () => void;
   onRemove?: (index: number) => void;
+  onMove?: (index: number, offset: -1 | 1) => void;
 }) {
   return html`<section aria-label="Route directions">
     <h2>Route directions</h2>
@@ -27,6 +28,10 @@ export function renderDirectionsEditor(options: {
             @input=${(event: Event) => options.onChange(index, 'instruction', (event.target as HTMLTextAreaElement).value)}></textarea></label>
           <label>Step ${index + 1} distance (meters)<input type="number" required min="0.01" max="1000" step="any" .value=${step.distanceMeters}
             @input=${(event: Event) => options.onChange(index, 'distanceMeters', (event.target as HTMLInputElement).value)}></label>
+          <button type="button" aria-label=${`Move step ${index + 1} up`} title=${`Move step ${index + 1} up`}
+            ?disabled=${index === 0} @click=${() => options.onMove?.(index, -1)}>&uarr;</button>
+          <button type="button" aria-label=${`Move step ${index + 1} down`} title=${`Move step ${index + 1} down`}
+            ?disabled=${index === options.draft.length - 1} @click=${() => options.onMove?.(index, 1)}>&darr;</button>
           <button type="button" aria-label=${`Remove step ${index + 1}`} title=${`Remove step ${index + 1}`}
             ?disabled=${options.draft.length <= 1} @click=${() => options.onRemove?.(index)}>&times;</button>
         </div>`)}

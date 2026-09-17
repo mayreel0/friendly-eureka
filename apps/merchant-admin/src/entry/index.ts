@@ -55,6 +55,16 @@ export function registerMerchantAdminElement(
         onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
         directionsDraft: this.directionsDraft,
+        onMoveDirection: (index, offset) => {
+          const target = index + offset;
+          if (this.busy || this.conflict || target < 0 || target >= this.directionsDraft.length) return;
+          const draft = [...this.directionsDraft];
+          [draft[index], draft[target]] = [draft[target], draft[index]];
+          this.directionsDraft = draft;
+          this.directionsEdited = true;
+          this.previewUrl = undefined;
+          this.requestUpdate();
+        },
         onAddDirection: () => {
           if (this.busy || this.conflict || this.directionsDraft.length >= maxPilotSteps) return;
           this.directionsDraft = [...this.directionsDraft, { instruction: '', distanceMeters: '', landmarkLabel: '' }];
