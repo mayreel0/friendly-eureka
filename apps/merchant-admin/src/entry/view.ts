@@ -13,6 +13,7 @@ export function renderPilotRouteRecordingScreen(
     guestOrigin: string;
     busy: boolean;
     error: string;
+    onReload?: () => void;
     draft: QrPlacementDraft;
     onDraft: (field: keyof QrPlacementDraft, value: string) => void;
     onAction: (id: PilotRouteRecordingScreenActionId, followUpId?: string) => void;
@@ -35,6 +36,7 @@ export function renderPilotRouteRecordingScreen(
       <p data-progress-summary="pilot">${view.progress.label}</p>
       <p data-progress-next-target=${view.nextTarget.id}>Next: ${view.nextTarget.label}</p>
       ${options.error ? html`<p role="alert">${options.error}</p>` : nothing}
+      ${options.onReload ? html`<button type="button" @click=${options.onReload}>Load latest state</button>` : nothing}
       <div data-dashboard-grid="pilot">
         <div data-dashboard-column="primary">
           <div data-dashboard-panel="route-status">
