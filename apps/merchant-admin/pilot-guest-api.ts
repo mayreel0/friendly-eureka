@@ -4,6 +4,7 @@ import {
   applyPilotRouteRecordingUiAction, createPilotRouteRecordingUiState,
   pilotRouteId, pilotStoreId, type PilotRouteRecordingStage,
 } from './src/index.ts';
+import { samePilotDirections, type PilotDirections } from './src/pilot-directions.ts';
 
 export type PilotGuestApi = Pick<ReturnType<typeof createPilotGuestApi>, 'issueSession' | 'fetchRoute'>;
 
@@ -12,19 +13,23 @@ export function createPilotGuestApi(options: { now?: () => string } = {}) {
   let context = createApiContext({ signingSecret: randomUUID(), now: options.now });
   let published = false;
   let qrKey = '';
+  let directions: PilotDirections | undefined;
+  let routeVersion: number | undefined;
   const unavailable = () => ({ ok: false as const, status: 409, error: 'pilot-route-not-active' });
 
   return {
-    setRecording(recording: { stage: PilotRouteRecordingStage; routeId?: string }) {
+    setRecording(recording: { stage: PilotRouteRecordingStage; routeId?: string; directions?: PilotDirections; routeVersion?: number }) {
       const nextPublished = recording.routeId === pilotRouteId &&
         (recording.stage === 'active' || recording.stage === 'launch-ready');
-      if (nextPublished === published) return;
+      if (nextPublished === published && samePilotDirections(directions, recording.directions) && routeVersion === recording.routeVersion) return;
+      directions = recording.directions;
+      routeVersion = recording.routeVersion;
       // Rotating the local runtime revokes old sessions when a route is re-recorded.
       context = createApiContext({ signingSecret: randomUUID(), now: options.now });
       published = nextPublished;
       qrKey = '';
       if (!published) return;
-      let state = createPilotRouteRecordingUiState(context);
+      let state = createPilotRouteRecordingUiState(context, { directions, routeVersion });
       for (const action of ['record-route', 'mark-test-passed', 'activate-route'] as const) {
         state = applyPilotRouteRecordingUiAction(state, action);
       }

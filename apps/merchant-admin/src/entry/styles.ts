@@ -21,6 +21,10 @@ export const merchantStyles = css`
       line-height: 1.2;
     }
 
+    section[aria-label="Route directions"] { padding: 0; }
+    section[aria-label="Route directions"] fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+    section[aria-label="Route directions"] h3 { font-size: .9375rem; margin: 16px 0 8px; }
+
     h2 {
       margin: 28px 0 12px;
       font-size: 1rem;

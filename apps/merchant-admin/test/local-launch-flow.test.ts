@@ -61,6 +61,40 @@ describe('local merchant admin to guest WebXR launch flow', () => {
       assert.ok(resumedUrl);
       await page.goto(resumedUrl);
       await expect(page.locator('[data-current-instruction]')).toContainText('main hallway');
+      await page.goto(serverBaseUrl(merchantServer));
+      await page.getByRole('textbox', { name: 'Step 1 instruction', exact: true }).fill('Walk past the reception desk.');
+      await page.getByRole('spinbutton', { name: 'Step 1 distance (meters)', exact: true }).fill('12.5');
+      await page.route('**/api/dev/pilot-state', async (route) => {
+        if (route.request().method() === 'POST') await route.fulfill({ status: 500, json: { error: 'unavailable' } });
+        else await route.continue();
+      });
+      await page.getByRole('button', { name: 'Save route directions', exact: true }).click();
+      await expect(page.getByRole('alert')).toContainText('Could not save');
+      await expect(page.getByRole('textbox', { name: 'Step 1 instruction', exact: true })).toHaveValue('Walk past the reception desk.');
+      await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'launch-ready');
+      await page.unroute('**/api/dev/pilot-state');
+      await page.getByRole('button', { name: 'Save route directions', exact: true }).click();
+      await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'recorded');
+      const resumedToken = new URL(resumedUrl).searchParams.get('token')!;
+      assert.equal((await fetch(`${serverBaseUrl(guestServer)}/api/guest/routes?token=${encodeURIComponent(resumedToken)}`)).status, 403);
+      await page.reload();
+      await expect(page.getByRole('textbox', { name: 'Step 1 instruction', exact: true })).toHaveValue('Walk past the reception desk.');
+      for (const action of ['mark-test-passed', 'activate-route', 'generate-guest-url']) {
+        await page.locator(`[data-action-id="${action}"]`).first().click();
+      }
+      await expect(page.locator('a[data-launch-url]')).toBeVisible();
+      const editedUrl = await page.locator('a[data-launch-url]').getAttribute('href');
+      assert.ok(editedUrl);
+      const editedToken = new URL(editedUrl).searchParams.get('token')!;
+      const editedRoute = await (await fetch(`${serverBaseUrl(guestServer)}/api/guest/routes?token=${encodeURIComponent(editedToken)}`)).json();
+      assert.equal(editedRoute.route.version, 2);
+      assert.equal(editedRoute.route.totalDistanceMeters, 16.7);
+      await page.goto(editedUrl);
+      await expect(page.locator('[data-current-instruction]')).toHaveText('Walk past the reception desk.');
+      for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 844 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      }
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();

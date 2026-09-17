@@ -2,6 +2,7 @@ import { html, nothing } from 'lit';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { repeat } from 'lit/directives/repeat.js';
 import './guest-qr.ts';
+import { renderDirectionsEditor, type DirectionsDraft } from './directions-editor.ts';
 import { createPilotRouteRecordingView } from './state.ts';
 import type { PilotRouteRecordingScreenActionId, PilotRouteRecordingScreenState } from './types.ts';
 
@@ -15,6 +16,8 @@ export function renderPilotRouteRecordingScreen(
     error: string;
     onReload?: () => void;
     draft: QrPlacementDraft;
+    directionsDraft: DirectionsDraft;
+    onDirectionsDraft: (index: number, field: 'instruction' | 'distanceMeters', value: string) => void;
     onDraft: (field: keyof QrPlacementDraft, value: string) => void;
     onAction: (id: PilotRouteRecordingScreenActionId, followUpId?: string) => void;
   },
@@ -61,6 +64,8 @@ export function renderPilotRouteRecordingScreen(
                 ${item.resultNote ? html`<span data-qa-note=${item.id}>${item.resultNote.summary} at ${item.resultNote.recordedAt}</span>` : nothing}
               </li>`)}</ol>
           </div>
+          ${renderDirectionsEditor({ draft: options.directionsDraft, disabled: options.busy || state.stage === 'empty',
+            onChange: options.onDirectionsDraft, onSave: () => options.onAction('save-directions') })}
           <div data-dashboard-panel="qr-placement-evidence">
             <h2>QR placement evidence</h2>
             <label>Location<input data-qr-placement-location .value=${options.draft.location}

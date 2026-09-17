@@ -46,6 +46,8 @@ Use **Pause guest access** to stop new session issuance and route requests. Paus
 
 Dashboard saves include the revision loaded by that tab. If another tab saves first, or the server restarts, the stale save is rejected. **Load latest state** refreshes the dashboard without discarding unsaved QR placement fields; then explicitly repeat the intended action. Legacy developer API clients without a revision header remain unconditional writers. This is single-process conflict protection, not multi-server coordination.
 
+After recording the example route, edit the two instructions and distances under **Route directions**. **Save route directions** persists the edits, increments the route version, invalidates old guest sessions, and returns the route to the recorded stage. Mark the route test passed, activate, and generate a fresh link to see the edited guidance. Save failures keep unsaved fields. This edits manual guidance only: anchor locations remain seeded, and it does not add native tracking, pose capture, or new landmarks.
+
 The guest launch panel displays a scannable QR and downloads it as a PNG. For phone testing, start a tunnel to guest port 4173, then use its HTTPS origin when starting the pilot servers:
 
 ```bash

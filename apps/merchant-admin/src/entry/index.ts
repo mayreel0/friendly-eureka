@@ -10,6 +10,8 @@ import {
 import type { MerchantAdminElementEnvironment, PilotRouteRecordingScreenActionId } from './types.ts';
 import { renderPilotRouteRecordingScreen, type QrPlacementDraft } from './view.ts';
 import { merchantStyles } from './styles.ts';
+import { createDirectionsDraft } from './directions-editor.ts';
+import { InvalidPilotDirectionsError, parsePilotDirections, samePilotDirections } from '../pilot-directions.ts';
 
 export type * from './types.ts';
 export * from './state.ts';
@@ -32,6 +34,8 @@ export function registerMerchantAdminElement(
     private error = '';
     private revision?: string;
     private conflict = false;
+    private directionsDraft = createDirectionsDraft();
+    private directionsEdited = false;
 
     protected firstUpdated() {
       void this.loadPersistedState();
@@ -44,6 +48,11 @@ export function registerMerchantAdminElement(
         error: this.error,
         onReload: this.conflict && !this.busy ? () => { void this.loadPersistedState(); } : undefined,
         draft: this.draft,
+        directionsDraft: this.directionsDraft,
+        onDirectionsDraft: (index, field, value) => {
+          this.directionsEdited = true;
+          this.directionsDraft = this.directionsDraft.map((step, stepIndex) => stepIndex === index ? { ...step, [field]: value } : step);
+        },
         onDraft: (field, value) => {
           this.draftEdited = true;
           this.draft = { ...this.draft, [field]: value };
@@ -59,7 +68,14 @@ export function registerMerchantAdminElement(
       this.requestUpdate();
       try {
         let next = this.state;
-        if (id === 'generate-guest-url') {
+        if (id === 'save-directions') {
+          const directions = parsePilotDirections(this.directionsDraft.map((step) => ({
+            instruction: step.instruction, distanceMeters: Number(step.distanceMeters),
+          })));
+          if (samePilotDirections(next.directions, directions)) return;
+          next = { ...next, directions, routeVersion: (next.routeVersion ?? 1) + 1,
+            routeId: 'pilot-restroom-route', stage: 'recorded', launchUrl: undefined, expiresAt: undefined };
+        } else if (id === 'generate-guest-url') {
           const session = await generateGuestSession(environment);
           next = { ...next, stage: 'launch-ready', launchUrl: session.launchUrl, expiresAt: session.expiresAt };
         } else if (id === 'record-follow-up') {
@@ -73,9 +89,13 @@ export function registerMerchantAdminElement(
         }
         this.revision = await savePilotState(environment, next, this.revision);
         this.state = next;
+        if (id === 'save-directions') {
+          this.directionsDraft = createDirectionsDraft(next.directions);
+          this.directionsEdited = false;
+        }
       } catch (error) {
         this.conflict = error instanceof PilotStateConflictError;
-        this.error = error instanceof GuestSessionError || error instanceof PilotStateConflictError
+        this.error = error instanceof GuestSessionError || error instanceof PilotStateConflictError || error instanceof InvalidPilotDirectionsError
           ? error.message : 'Could not save this action. Please try again.';
       } finally {
         this.busy = false;
@@ -109,6 +129,7 @@ export function registerMerchantAdminElement(
         if (evidence && !this.draftEdited) {
           this.draft = { location: evidence.location, orientation: evidence.orientation, note: evidence.note };
         }
+        if (!this.directionsEdited) this.directionsDraft = createDirectionsDraft(pilot.recording.directions);
         this.busy = false;
         this.conflict = false;
         this.error = '';

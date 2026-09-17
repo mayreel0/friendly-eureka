@@ -1,3 +1,5 @@
+import type { PilotDirections } from '../pilot-directions.ts';
+
 export type PilotRouteRecordingScreenStage =
   | 'empty'
   | 'recorded'
@@ -11,6 +13,7 @@ export type PilotRouteRecordingScreenActionId =
   | 'mark-test-passed'
   | 'activate-route'
   | 'pause-route'
+  | 'save-directions'
   | 'mark-qr-placed'
   | 'mark-staff-fallback-ready'
   | 'generate-guest-url'
@@ -19,6 +22,8 @@ export type PilotRouteRecordingScreenActionId =
   | 'record-qr-placement-evidence';
 
 export type PilotRouteRecordingScreenState = {
+  directions?: PilotDirections;
+  routeVersion?: number;
   stage: PilotRouteRecordingScreenStage;
   hasQrPlacement: boolean;
   hasStaffFallbackNote: boolean;
@@ -90,6 +95,8 @@ export type PilotReadinessApiState = {
 };
 
 export type PilotRouteRecordingApiState = {
+  directions?: PilotDirections;
+  routeVersion?: number;
   stage: PilotRouteRecordingScreenStage;
   routeId?: string;
   launchUrl?: string;
