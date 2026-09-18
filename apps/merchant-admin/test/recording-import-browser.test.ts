@@ -24,6 +24,17 @@ test('merchant selects a recording, confirms replacement and previews imported g
     const input = page.getByLabel('Android recording JSON', { exact: true });
     await input.setInputFiles({ name: 'walk.json', mimeType: 'application/json', buffer: fixture });
     await expect(page.locator('[data-recording-preview]')).toContainText('2 steps');
+    const map = page.getByRole('img', { name: 'Recorded path, top view' });
+    await expect(map).toBeVisible();
+    await expect(map.locator('[data-route-line]')).toHaveAttribute('points', /\d/);
+    await expect(map.locator('[data-landmark-marker]')).toHaveCount(3);
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      const box = await map.boundingBox();
+      assert.ok(box && box.width > 200 && box.height > 100);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      if (process.env.LECHIGO_SCREENSHOTS === '1') await page.getByRole('region', { name: 'Recorded route', exact: true }).screenshot({ path: `/tmp/lechigo-path-${width}.png` });
+    }
     await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'empty');
     await page.getByRole('button', { name: 'Import as new draft', exact: true }).click();
     await expect(page.locator('[data-screen]')).toHaveAttribute('data-stage', 'recorded');
