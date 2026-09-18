@@ -3,6 +3,7 @@ import { InvalidRecordingError, maxRecordingBytes, parseRecording, type AndroidR
 import { GuestSessionError, PilotStateConflictError } from './api.ts';
 import type { ImportedRecording } from '../recording-import.ts';
 import type { PilotDevStateApiState } from './types.ts';
+import { renderRecordingPath } from './recording-path.ts';
 
 export async function readRecordingFile(file: File) {
   if (file.size > maxRecordingBytes) throw new GuestSessionError('Recording exceeds the 1 MB limit.');
@@ -38,6 +39,7 @@ export function renderRecordingImport(options: {
       }}></label>
     ${recording ? html`<div data-recording-preview aria-live="polite">
       <p>${recording.landmarks.length - 1} steps · ${recording.distanceMeters.toFixed(2)} m · ${recording.samples.length} samples</p>
+      ${renderRecordingPath(recording)}
       <ol>${recording.landmarks.slice(1).map((point) => html`<li>${point.label}: ${point.instruction}</li>`)}</ol>
       <button type="button" ?disabled=${options.busy} @click=${options.onImport}>Import as new draft</button>
     </div>` : nothing}
