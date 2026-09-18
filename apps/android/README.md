@@ -31,4 +31,6 @@ The envelope contains ordered samples and entrance/landmark/destination points. 
 
 ## Verification Status
 
-The recorder core has six passing JVM tests, including tracking loss, stale/jumping frames, bounds and serialization. SDK installation approval is pending in this environment, so the Android APK and physical camera/permission lifecycle have not been verified yet. Do not treat JVM results as a successful Galaxy Z Flip7 recording.
+The recorder core has six passing JVM tests, including tracking loss, stale/jumping frames, bounds and serialization. The debug APK builds with JDK 17 and SDK 35, and passes `apksigner verify`. Physical camera/permission lifecycle and tracking accuracy have not been verified yet. Do not treat build or JVM results as a successful Galaxy Z Flip7 recording.
+
+Android and Kotlin plugin versions are declared together in the root build file; app modules apply them without repeating versions. This avoids Kotlin's unknown-version and Android classpath errors. The app manifest explicitly overrides SceneView's optional AR metadata because recording requires ARCore.

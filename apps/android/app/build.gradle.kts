@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.application") version "8.9.1"
-    kotlin("android") version "2.0.21"
+    id("com.android.application")
+    kotlin("android")
 }
 android {
     namespace = "com.lechigo.recorder"
