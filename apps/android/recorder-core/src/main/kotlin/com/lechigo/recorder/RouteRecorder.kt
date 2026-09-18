@@ -15,6 +15,7 @@ class RouteRecorder {
     private var latestHeading: Vec3? = null
     private var latestTime = -1L
     private var tracking = false
+    private var trackingSince: Long? = null
     private var origin = Vec3(0.0, 0.0, 0.0)
     private var heading = Vec3(0.0, 0.0, -1.0)
     private var startedAt = ""
@@ -24,27 +25,36 @@ class RouteRecorder {
     private val samples = mutableListOf<RecordedSample>()
     private val landmarks = mutableListOf<RecordedLandmark>()
 
-    fun canStart(now: Long) = state == RecorderState.IDLE && fresh(now) && latestHeading != null
+    fun canStart(now: Long) = state == RecorderState.IDLE && fresh(now) && latestHeading != null &&
+        trackingSince?.let { latestTime - it >= 1000 } == true
 
-    fun update(position: Vec3?, forward: Vec3?, isTracking: Boolean, now: Long) {
+    fun update(position: Vec3?, forward: Vec3?, isTracking: Boolean, now: Long,
+        trackingFailure: String = "Tracking lost.") {
         val previousTime = latestTime
+        val wasFresh = fresh(now)
         tracking = isTracking && position?.isValid() == true
-        if (!tracking) { interrupt("Tracking lost. Restart at the entrance."); return }
+        if (!tracking) {
+            trackingSince = null
+            interrupt("$trackingFailure Restart at the entrance.")
+            return
+        }
         latestPosition = position
         latestTime = now
         if (forward != null) {
             val length = hypot(forward.x, forward.z)
             latestHeading = if (forward.isValid() && length >= 0.1) Vec3(forward.x / length, 0.0, forward.z / length) else null
         }
+        if (latestHeading == null) trackingSince = null
+        else if (!wasFresh || trackingSince == null) trackingSince = now
         if (state != RecorderState.RECORDING) return
-        if (now <= previousTime || now - previousTime > 2000 || now - startTime > 600_000) {
+        if (now < previousTime || now - previousTime > 2000 || now - startTime > 600_000) {
             interrupt("Recording interrupted or time limit reached. Restart at the entrance."); return
         }
         if (now - lastSampleTime >= 200) capture(now)
     }
 
     fun start(recordedAt: String, now: Long) {
-        check(canStart(now)) { "Wait for fresh tracking while facing the route." }
+        check(canStart(now)) { "Wait for stable tracking while facing the route." }
         Instant.parse(recordedAt)
         origin = latestPosition!!
         heading = latestHeading!!
@@ -74,12 +84,15 @@ class RouteRecorder {
     }
 
     fun interrupt(message: String) {
+        tracking = false
+        trackingSince = null
         if (state == RecorderState.RECORDING) { state = RecorderState.INTERRUPTED; reason = message }
     }
 
     fun reset() {
         state = RecorderState.IDLE; reason = ""; distanceMeters = 0.0; markedDistance = 0.0
         samples.clear(); landmarks.clear(); latestPosition = null; latestHeading = null; latestTime = -1; tracking = false
+        trackingSince = null
     }
 
     fun exportJson(): String {

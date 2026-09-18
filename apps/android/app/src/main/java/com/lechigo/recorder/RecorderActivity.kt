@@ -15,6 +15,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.ar.core.TrackingState
+import com.google.ar.core.TrackingFailureReason
 import io.github.sceneview.ar.ARSceneView
 import java.io.File
 import java.time.Instant
@@ -29,6 +30,7 @@ class RecorderActivity : ComponentActivity() {
     private lateinit var progress: TextView
     private lateinit var scene: ARSceneView
     private var cameraError: String? = null
+    private var trackingHint = "Waiting for tracking"
     private var lastUiTime = 0L
     private var exporting = false
     private val savedRecording by lazy { AtomicFile(File(filesDir, "completed-route.json")) }
@@ -59,7 +61,10 @@ class RecorderActivity : ComponentActivity() {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom); insets
         }
         status = findViewById(R.id.status); progress = findViewById(R.id.progress)
-        button(R.id.start).setOnClickListener { action { recorder.start(Instant.now().toString(), now()) } }
+        button(R.id.start).setOnClickListener {
+            if (recorder.canStart(now())) action { recorder.start(Instant.now().toString(), now()) }
+            else render()
+        }
         button(R.id.restart).setOnClickListener {
             AlertDialog.Builder(this).setMessage("Discard this walk and return to the entrance?")
                 .setNegativeButton("Keep recording", null)
@@ -84,11 +89,14 @@ class RecorderActivity : ComponentActivity() {
                 val camera = frame.camera
                 val pose = camera.pose
                 val forward = pose.getTransformedAxis(2, -1f)
+                val tracking = camera.trackingState == TrackingState.TRACKING
+                trackingHint = if (tracking) "Waiting for stable tracking" else trackingMessage(camera.trackingFailureReason)
+                val previousState = recorder.state
                 recorder.update(Vec3(pose.tx().toDouble(), pose.ty().toDouble(), pose.tz().toDouble()),
                     Vec3(forward[0].toDouble(), forward[1].toDouble(), forward[2].toDouble()),
-                    camera.trackingState == TrackingState.TRACKING, now())
+                    tracking, now(), "Tracking lost: ${trackingMessage(camera.trackingFailureReason)}")
                 cameraError = null
-                if (now() - lastUiTime >= 250) { lastUiTime = now(); render() }
+                if (recorder.state != previousState || now() - lastUiTime >= 250) { lastUiTime = now(); render() }
             }
         }
         findViewById<FrameLayout>(R.id.camera).addView(scene)
@@ -136,21 +144,33 @@ class RecorderActivity : ComponentActivity() {
     }
 
     private fun render() {
-        status.text = cameraError ?: when (recorder.state) {
-            RecorderState.IDLE -> if (recorder.canStart(now())) "Ready at entrance" else "Waiting for tracking"
+        val message = cameraError ?: when (recorder.state) {
+            RecorderState.IDLE -> if (recorder.canStart(now())) "Ready at entrance" else trackingHint
             RecorderState.RECORDING -> "Recording"
             RecorderState.INTERRUPTED -> recorder.reason
             RecorderState.FINISHED -> "Route complete"
         }
-        progress.text = String.format(Locale.ROOT, "%d points | %.1f meters", recorder.pointCount, recorder.distanceMeters)
+        if (status.text.toString() != message) status.text = message
+        val distance = String.format(Locale.ROOT, "%d points | %.1f meters", recorder.pointCount, recorder.distanceMeters)
+        if (progress.text.toString() != distance) progress.text = distance
         button(R.id.start).isEnabled = recorder.canStart(now()) && !exporting
         button(R.id.restart).isEnabled = recorder.state != RecorderState.IDLE && !exporting
         button(R.id.mark).isEnabled = recorder.state == RecorderState.RECORDING
         button(R.id.finish).isEnabled = recorder.state == RecorderState.RECORDING
-        button(R.id.export).text = if (recorder.state == RecorderState.FINISHED) "Export recording" else "Export saved recording"
+        val exportLabel = if (recorder.state == RecorderState.FINISHED) "Export recording" else "Export saved recording"
+        if (button(R.id.export).text.toString() != exportLabel) button(R.id.export).text = exportLabel
         button(R.id.export).isEnabled = !exporting && (recorder.state == RecorderState.FINISHED ||
             (recorder.state == RecorderState.IDLE && savedRecording.baseFile.exists()))
         button(R.id.settings).visibility = if (cameraError == null) View.GONE else View.VISIBLE
+    }
+
+    private fun trackingMessage(reason: TrackingFailureReason) = when (reason) {
+        TrackingFailureReason.INSUFFICIENT_LIGHT -> "Not enough light."
+        TrackingFailureReason.INSUFFICIENT_FEATURES -> "Not enough visual detail."
+        TrackingFailureReason.EXCESSIVE_MOTION -> "Camera moving too fast."
+        TrackingFailureReason.CAMERA_UNAVAILABLE -> "Camera unavailable."
+        TrackingFailureReason.BAD_STATE -> "AR session error."
+        else -> "AR session initializing."
     }
 
     private fun button(id: Int) = findViewById<Button>(id)
