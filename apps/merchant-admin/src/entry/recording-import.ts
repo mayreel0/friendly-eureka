@@ -46,5 +46,11 @@ export function renderRecordingImport(options: {
     ${options.saved ? html`<p data-recording-source>Manual guidance · Android recording
       <time datetime=${options.saved.recordedAt}>${new Date(options.saved.recordedAt).toLocaleString()}</time>
       · imported as v${options.saved.routeVersion}${options.saved.routeVersion !== options.routeVersion ? ' · edited since import' : ''}</p>` : nothing}
+    ${options.saved?.original ? html`
+      ${recording ? nothing : html`<h3>Original recorded path · v${options.saved.routeVersion}</h3>
+        ${renderRecordingPath(options.saved.original)}
+        <ol>${options.saved.original.landmarks.slice(1).map((point) => html`<li>${point.label}: ${point.instruction}</li>`)}</ol>`}
+      <a data-original-download href=${`/api/dev/pilot-route-source?version=${options.saved.routeVersion}`} download>Download original JSON</a>
+    ` : options.saved ? html`<p>Original JSON was not retained for this import.</p>` : nothing}
   </section>`;
 }

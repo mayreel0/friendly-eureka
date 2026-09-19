@@ -1,4 +1,4 @@
-import type { AndroidRecording } from '../../../packages/route-core/src/recording.ts';
+import { InvalidRecordingError, parseRecording, type AndroidRecording } from '../../../packages/route-core/src/recording.ts';
 import { parsePilotDirections } from './pilot-directions.ts';
 
 export type ImportedRecording = {
@@ -8,6 +8,7 @@ export type ImportedRecording = {
   sampleCount: number;
   distanceMeters: number;
   routeVersion: number;
+  original?: AndroidRecording;
 };
 
 export function recordingToDraft(recording: AndroidRecording, routeVersion: number) {
@@ -19,6 +20,7 @@ export function recordingToDraft(recording: AndroidRecording, routeVersion: numb
     importedRecording: {
       source: recording.source, recordedAt: recording.recordedAt, importedAt: new Date().toISOString(),
       sampleCount: recording.samples.length, distanceMeters: recording.distanceMeters, routeVersion,
+      original: recording,
     } satisfies ImportedRecording,
   };
 }
@@ -31,6 +33,10 @@ export function parseImportedRecording(value: unknown): ImportedRecording | unde
     typeof v.sampleCount !== 'number' || !Number.isInteger(v.sampleCount) || v.sampleCount < 2 || v.sampleCount > 3000 ||
     typeof v.distanceMeters !== 'number' || !Number.isFinite(v.distanceMeters) || v.distanceMeters < 0.2 || v.distanceMeters > 1000 ||
     typeof v.routeVersion !== 'number' || !Number.isSafeInteger(v.routeVersion) || v.routeVersion < 1) return undefined;
+  const original = v.original === undefined ? undefined : parseRecording(v.original);
+  if (original && (original.recordedAt !== v.recordedAt || original.samples.length !== v.sampleCount ||
+    original.distanceMeters !== v.distanceMeters)) throw new InvalidRecordingError();
   return { source: v.source, recordedAt: v.recordedAt, importedAt: v.importedAt,
-    sampleCount: v.sampleCount, distanceMeters: v.distanceMeters, routeVersion: v.routeVersion };
+    sampleCount: v.sampleCount, distanceMeters: v.distanceMeters, routeVersion: v.routeVersion,
+    ...(original ? { original } : {}) };
 }

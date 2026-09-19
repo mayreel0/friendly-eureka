@@ -26,6 +26,7 @@ export const merchantStyles = css`
     [data-recording-path] svg { display: block; width: 100%; max-width: 640px; aspect-ratio: 3 / 2; background: #f1f5f4; }
     [data-recording-path] figcaption { font-size: .875rem; color: #46515f; margin: 8px 0; overflow-wrap: anywhere; }
     [data-recording-path] p { margin: 0; overflow-wrap: anywhere; }
+    [data-original-download] { display: inline-flex; align-items: center; min-height: 44px; margin-top: 8px; }
     section[aria-label="Route directions"] fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
     section[aria-label="Route directions"] h3 { font-size: .9375rem; margin: 16px 0 8px; }
 

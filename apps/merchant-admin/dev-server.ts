@@ -144,6 +144,29 @@ export function createMerchantAdminDevServer(
         return;
       }
 
+      if (requestUrl.pathname === '/api/dev/pilot-route-source') {
+        if (request.method !== 'GET') {
+          writeJson(response, 405, { ok: false, error: 'method-not-allowed' });
+          return;
+        }
+        const source = pilotState.recording.importedRecording;
+        if (!source?.original) {
+          writeJson(response, 404, { ok: false, error: 'recording-source-unavailable' });
+          return;
+        }
+        if (requestUrl.searchParams.get('version') !== String(source.routeVersion)) {
+          writeJson(response, 409, { ok: false, error: 'recording-source-changed' });
+          return;
+        }
+        response.writeHead(200, {
+          'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
+          'content-disposition': `attachment; filename="lechigo-recording-v${source.routeVersion}.json"`,
+          'x-content-type-options': 'nosniff',
+        });
+        response.end(JSON.stringify(source.original));
+        return;
+      }
+
       if (requestUrl.pathname === '/api/dev/pilot-route-import') {
         if (request.method !== 'POST') {
           writeJson(response, 405, { ok: false, error: 'method-not-allowed' });
