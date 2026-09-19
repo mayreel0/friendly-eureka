@@ -41,6 +41,12 @@ test('merchant selects a recording, confirms replacement and previews imported g
     await expect(page.getByLabel('Step 1 landmark name', { exact: true })).toHaveValue('Reception');
     await expect(page.locator('[data-recording-source]')).toContainText('Manual guidance');
     await page.reload();
+    await expect(page.getByRole('img', { name: 'Recorded path, top view' })).toBeVisible();
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('link', { name: 'Download original JSON', exact: true }).click();
+    const download = await downloadPromise;
+    assert.match(download.suggestedFilename(), /^lechigo-recording-v\d+\.json$/);
+    assert.deepEqual(JSON.parse(await readFile((await download.path())!, 'utf8')), JSON.parse(fixture.toString()));
     await expect(page.getByLabel('Step 2 instruction', { exact: true })).toHaveValue('Turn left to the restroom.');
     await input.setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{}') });
     await expect(page.getByRole('alert')).toContainText('Invalid Android');
