@@ -96,3 +96,17 @@ Follow these rules for development work on this repository:
 10. For security changes, document the risk being addressed, the scope of the change, remaining limitations, and compensating defenses.
 11. For every Gemini review finding, respond in the pull request with one of: incorporated, rebutted, or deferred. When a finding is incorporated, reply to the relevant GitHub review comment with the implementation details and the fixing commit. The user requests the actual Gemini re-review in Antigravity IDE; do not assume a separate Gemini GitHub bot, an automatic mention, or an automatic re-review request. Track separate follow-up work in Linear.
 12. Never merge a pull request without the user's explicit approval.
+
+## GitHub Review Publishing Rules
+
+Follow these rules when publishing code reviews on GitHub pull requests:
+
+1. Write a separate inline review comment on the specific file and line for each independent issue discovered in the changed code.
+2. Inline comments must clearly state the root cause, actual impact, severity, and concrete remediation steps. Provide a code modification example using Markdown diff when appropriate.
+3. When multiple issues exist, submit them in a single batch review using the GitHub REST API (`POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews`) with the `comments` array. Do not combine all issues into the body of `gh pr review --comment`.
+4. In the top-level PR review summary body, include only the review summary, major risks, and items requiring additional verification.
+5. Record issues in pre-existing code outside the changed diff, or overarching architectural/operational concerns, separately in the top-level PR review summary. Never force-link unrelated concerns to arbitrary code lines.
+6. Do not post duplicate inline comments for issues that share the same root cause.
+7. After submission, verify via GitHub API that the inline comments were actually created.
+8. When re-reviewing an existing inline thread, reply directly to the existing thread rather than creating a duplicate new comment.
+9. Do not modify code or merge pull requests during code review.
