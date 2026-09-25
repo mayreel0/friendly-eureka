@@ -83,14 +83,16 @@ Follow these rules for development work on this repository:
 1. Before starting development work, use the Linear MCP to search the `friendly-eureka` project for an existing related issue. Create a new issue only when no relevant issue exists; do not create duplicates.
 2. Create new issues in the `Development` team and the `friendly-eureka` project. Use the issue ID actually assigned by Linear; never invent an issue ID.
 3. When implementation begins, move the related issue to `In Progress`.
-4. Preserve the existing Conventional Commits naming conventions:
+4. Preserve the existing Conventional Commits style for commit messages and development branches:
+   - Commit: `<type>: <description>`
    - Branch: `<type>/<issue-id>-<short-description>`
    - Pull request: `<type>: <issue-id> <description>`
+   - Include the issue ID in every branch name and pull request title. Do not require the issue ID in every commit message.
 5. After a pull request is created, the GitHub integration automatically moves the issue to `In Review`. Do not duplicate that transition manually.
 6. After a pull request is merged, the GitHub integration moves the issue to `Done`. Do not move an issue to `Done` merely because implementation is complete.
 7. When a user decision genuinely blocks the work, move the issue to `Needs User` and collect the outstanding decisions into one focused request. Continue any work that can proceed independently.
 8. When a separate problem is discovered, search for an existing related issue first and create a new issue only when necessary.
-9. In the pull request body, distinguish verification actually performed from checks still required after deployment. Never report an unperformed test as passing.
+9. Include `Fixes <issue-id>` in the pull request body. Also distinguish verification actually performed from checks still required after deployment. Never report an unperformed test as passing.
 10. For security changes, document the risk being addressed, the scope of the change, remaining limitations, and compensating defenses.
-11. For every Gemini review finding, respond in the pull request with one of: incorporated, rebutted, or deferred. Request another review after making fixes, and track separate follow-up work in Linear.
+11. For every Gemini review finding, respond in the pull request with one of: incorporated, rebutted, or deferred. When a finding is incorporated, reply to the relevant GitHub review comment with the implementation details and the fixing commit. The user requests the actual Gemini re-review in Antigravity IDE; do not assume a separate Gemini GitHub bot, an automatic mention, or an automatic re-review request. Track separate follow-up work in Linear.
 12. Never merge a pull request without the user's explicit approval.
