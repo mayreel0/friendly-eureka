@@ -76,25 +76,34 @@ If unsure where to store wiki documents, ask before writing.
 Do not default to writing wiki documents into the current repository.
 <!-- project-wiki-mode:end -->
 
+## Project-Specific Settings
+
+The sections from Linear and GitHub Development Operations through Review Feedback Response Rules are shared word-for-word with other projects. Put anything specific to this repository here instead of editing those sections.
+
+- Linear: team `Development`, project `friendly-eureka`.
+- Base branch: `main`.
+- CI: none. Report checks you actually ran locally.
+- Gemini review prompt: `docs/gemini-pr-review-prompt.md`. When pasting it into Antigravity, also paste `docs/review-criteria.md`.
+
 ## Linear and GitHub Development Operations
 
 Follow these rules for development work on this repository:
 
-1. Before starting development work, use the Linear MCP to search the `friendly-eureka` project for an existing related issue. Create a new issue only when no relevant issue exists; do not create duplicates.
-2. Create new issues in the `Development` team and the `friendly-eureka` project. Use the issue ID actually assigned by Linear; never invent an issue ID.
+1. Before starting development work, use the Linear MCP to search this repository's Linear project for an existing related issue. Create a new issue only when no relevant issue exists; do not create duplicates.
+2. Create new issues in the Linear team and project listed in Project-Specific Settings. Use the issue ID actually assigned by Linear; never invent an issue ID.
 3. When implementation begins, move the related issue to `In Progress`.
-4. Preserve the existing Conventional Commits style for commit messages and development branches:
+4. Use the Conventional Commits style for commit messages and development branches:
    - Commit: `<type>: <description>`
    - Branch: `<type>/<issue-id>-<short-description>`
    - Pull request: `<type>: <issue-id> <description>`
    - Include the issue ID in every branch name and pull request title. Do not require the issue ID in every commit message.
 5. After a pull request is created, the GitHub integration automatically moves the issue to `In Review`. Do not duplicate that transition manually.
 6. After a pull request is merged, the GitHub integration moves the issue to `Done`. Do not move an issue to `Done` merely because implementation is complete.
-7. When a user decision genuinely blocks the work, move the issue to `Needs User` and collect the outstanding decisions into one focused request. Continue any work that can proceed independently.
-8. When a separate problem is discovered, search for an existing related issue first and create a new issue only when necessary.
-9. Include `Fixes <issue-id>` in the pull request body. Also distinguish verification actually performed from checks still required after deployment. Never report an unperformed test as passing.
+7. Do not silently expand the scope of the current issue. When a separate problem is discovered, search for an existing related issue first and create a new issue only when necessary.
+8. Do not stop for minor implementation details that can be reasonably inferred; record the assumption and continue. When a user decision genuinely blocks the work, move the issue to `Needs User` and collect the outstanding decisions into one focused request. Continue any work that can proceed independently.
+9. Start the pull request body with `Linear: <issue-id>`. Distinguish verification actually performed from checks still required after deployment, and state how to perform the remaining checks. Never report an unperformed test as passing. Omit the remaining-checks part when no further verification is needed.
 10. For security changes, document the risk being addressed, the scope of the change, remaining limitations, and compensating defenses.
-11. Follow the Review Feedback Response Rules below for every Gemini or other review finding.
+11. Follow the Review Feedback Response Rules for every Gemini or other review finding.
 12. Never merge a pull request without the user's explicit approval.
 
 ## Pull Request Review Workflow
